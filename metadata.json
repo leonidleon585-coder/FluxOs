@@ -1,0 +1,6 @@
+{
+  "name": "OS Simulator",
+  "description": "An interactive, high-fidelity mobile operating system simulator enclosed in a realistic phone frame, featuring smooth opening and closing gesture-driven application animations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
