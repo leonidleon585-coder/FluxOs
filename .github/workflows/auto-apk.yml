@@ -19,15 +19,32 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
-
-    - name: Build Debug APK with Gradle
-      run: ./gradlew assembleDebug
+    - name: Find Gradle and Build APK
+      run: |
+        # Ищем, в какой папке лежит gradlew
+        GRADLEW_PATH=$(find . -name "gradlew" -print -quit)
+        
+        if [ -z "$GRADLEW_PATH" ]; then
+          echo "Ошибка: Файл gradlew вообще не найден в репозитории!"
+          exit 1
+        fi
+        
+        # Получаем директорию, где лежит gradlew
+        SUB_DIR=$(dirname "$GRADLEW_PATH")
+        echo "Проект найден в папке: $SUB_DIR"
+        
+        # Переходим туда, даем права и собираем
+        cd "$SUB_DIR"
+        chmod +x gradlew
+        ./gradlew assembleDebug
+        
+        # Переносим готовый APK в корень, чтобы шаг сохранения его нашел
+        mkdir -p $GITHUB_WORKSPACE/output_apk
+        cp $(find . -name "*.apk" -print -quit) $GITHUB_WORKSPACE/output_apk/app-debug.apk
 
     - name: Upload Finished APK
       uses: actions/upload-artifact@v4
       with:
         name: Project-APK
-        path: app/build/outputs/apk/debug/app-debug.apk
+        path: output_apk/app-debug.apk
         
