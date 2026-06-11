@@ -32,6 +32,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -212,63 +215,97 @@ fun OSSimulationWorkspace() {
                     .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // Outer hardware interactive buttons extending slightly from the frame boundaries
-                // Left physical Volume Keys
+                // Physical Hardware buttons positioned cleanly on the RIGHT edge of the device (as seen in photo)
                 Column(
                     modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(start = 1.dp, top = 160.dp)
+                        .align(Alignment.TopEnd)
+                        .padding(end = 1.dp, top = 175.dp),
+                    horizontalAlignment = Alignment.End
                 ) {
-                    // Vol Up
+                    // Vol Up Key
                     Box(
                         modifier = Modifier
-                            .size(width = 6.dp, height = 45.dp)
-                            .background(Color(0xFF333344), RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp))
+                            .size(width = 5.dp, height = 45.dp)
+                            .background(
+                                Brush.verticalGradient(listOf(Color(0xFFFCDDCE), Color(0xFFC58E71))),
+                                RoundedCornerShape(topEnd = 3.dp, bottomEnd = 3.dp)
+                            )
+                            .border(0.5.dp, Color(0xFF9F694F), RoundedCornerShape(topEnd = 3.dp, bottomEnd = 3.dp))
                             .clickable {
                                 osViewModel.updateVolume(systemVolume + 0.1f)
                                 triggerVolumeHUD()
                             }
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    // Vol Down
+                    // Vol Down Key
                     Box(
                         modifier = Modifier
-                            .size(width = 6.dp, height = 45.dp)
-                            .background(Color(0xFF333344), RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp))
+                            .size(width = 5.dp, height = 45.dp)
+                            .background(
+                                Brush.verticalGradient(listOf(Color(0xFFFCDDCE), Color(0xFFC58E71))),
+                                RoundedCornerShape(topEnd = 3.dp, bottomEnd = 3.dp)
+                            )
+                            .border(0.5.dp, Color(0xFF9F694F), RoundedCornerShape(topEnd = 3.dp, bottomEnd = 3.dp))
                             .clickable {
                                 osViewModel.updateVolume(systemVolume - 0.1f)
                                 triggerVolumeHUD()
                             }
                     )
+                    Spacer(modifier = Modifier.height(18.dp))
+                    // Power Key
+                    Box(
+                        modifier = Modifier
+                            .size(width = 5.dp, height = 66.dp)
+                            .background(
+                                Brush.verticalGradient(listOf(Color(0xFFFCDDCE), Color(0xFFC58E71))),
+                                RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp)
+                            )
+                            .border(0.5.dp, Color(0xFF9F694F), RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp))
+                            .clickable {
+                                osViewModel.togglePower()
+                            }
+                    )
                 }
 
-                // Right physical Power button
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(end = 1.dp, top = 200.dp)
-                        .size(width = 6.dp, height = 50.dp)
-                        .background(Color(0xFF443333), RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp))
-                        .clickable {
-                            osViewModel.togglePower()
-                        }
-                )
-
-                // Main Titanium Frame
+                // Main Polished Premium Rose Gold Frame (Rebuilt from scratch with exact styling)
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 4.dp)
-                        .border(4.dp, Color(0xFF2C3240), RoundedCornerShape(40.dp))
-                        .background(Color(0xFF101216), RoundedCornerShape(40.dp))
-                        .padding(6.dp), // Bezel spacing
+                        .padding(start = 2.dp, end = 5.dp) // Perfect spacing alignment
+                        .border(
+                            width = 2.dp,
+                            brush = Brush.verticalGradient(
+                                listOf(
+                                    Color(0xFFFFF2EC), // Ultra specular light reflections at curving limits
+                                    Color(0xFFE5B99F), // Mid-body radiant Rose Gold
+                                    Color(0xFFCA9477), // Curved shadow profile
+                                    Color(0xFFE5B99F)  // Symmetrical lower base
+                                )
+                            ),
+                            shape = RoundedCornerShape(46.dp)
+                        )
+                        .background(
+                            Brush.linearGradient(
+                                listOf(Color(0xFF16110F), Color(0xFF0E0B0A)) // Deep interior dark core
+                            ),
+                            shape = RoundedCornerShape(46.dp)
+                        )
+                        .padding(2.5.dp) // Bezel core divider
+                        .border(
+                            width = 0.8.dp,
+                            color = Color(0xFF2A1F1B), // Inner gasket metallic highlight
+                            shape = RoundedCornerShape(44.dp)
+                        )
+                        .padding(1.5.dp) // Screen glass bezel margin
+                        .background(Color.Black, RoundedCornerShape(42.dp)) // Pitch black solid screen bezel
+                        .padding(3.dp), // Premium ultra-thin uniform black bezel
                     contentAlignment = Alignment.Center
                 ) {
                     // Beautiful screen viewport clipped completely to simulate standard modern borders
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .clip(RoundedCornerShape(32.dp))
+                            .clip(RoundedCornerShape(38.dp))
                             .background(Color.Black)
                     ) {
                         if (isPowerOn) {
@@ -381,10 +418,17 @@ fun PhoneScreenContent(viewModel: OSViewModel) {
         }
     )
 
-    // Dynamic background matching theme
+    // Dynamic background matching theme (Rebuilt Aurora sky to match reference photo perfectly)
     val wallpaperBrush = remember(wallpaper) {
         when (wallpaper) {
-            WallpaperType.AURORA -> Brush.linearGradient(listOf(Color(0xFF071B2F), Color(0xFF0D47A1), Color(0xFF00B0FF)))
+            WallpaperType.AURORA -> Brush.verticalGradient(
+                listOf(
+                    Color(0xFF813DDE), // Deep premium violet at top
+                    Color(0xFFDC4191), // Glowing magenta-pink mid
+                    Color(0xFFFF8533), // Radiant orbital fire orange
+                    Color(0xFFFFF2DC)  // Soft warm peach-cream base
+                )
+            )
             WallpaperType.SPACE -> Brush.linearGradient(listOf(Color(0xFF110E24), Color(0xFF281C4F), Color(0xFF6A1B9A)))
             WallpaperType.EMERALD -> Brush.verticalGradient(listOf(Color(0xFF021B10), Color(0xFF0F5232), Color(0xFF1E824C)))
             WallpaperType.NEON -> Brush.radialGradient(listOf(Color(0xFF3B0B3B), Color(0xFF1F0C2F), Color(0xFF0F0418)))
@@ -397,6 +441,65 @@ fun PhoneScreenContent(viewModel: OSViewModel) {
             .fillMaxSize()
             .background(wallpaperBrush)
     ) {
+        // Beautiful orbital crescent sphere glass curve drawing for the Rose Gold edition
+        if (wallpaper == WallpaperType.AURORA) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val w = size.width
+                val h = size.height
+
+                // Elegant swooping crescent path representing the curved glass bubble from the photo
+                val arcPath1 = Path().apply {
+                    moveTo(-w * 0.15f, h * 0.18f)
+                    cubicTo(
+                        w * 0.35f, h * 0.22f,
+                        w * 0.72f, h * 0.42f,
+                        w * 1.15f, h * 0.52f
+                    )
+                }
+
+                // 2. Neon-style ambient warm core blur
+                drawPath(
+                    path = arcPath1,
+                    color = Color(0xFFFF8A65).copy(alpha = 0.22f),
+                    style = Stroke(width = 40f, cap = StrokeCap.Round)
+                )
+
+                // 3. Medium glowing orange-yellow light leakage
+                drawPath(
+                    path = arcPath1,
+                    color = Color(0xFFFFD54F).copy(alpha = 0.45f),
+                    style = Stroke(width = 12f, cap = StrokeCap.Round)
+                )
+
+                // 4. Razor-sharp white reflection highlight
+                drawPath(
+                    path = arcPath1,
+                    color = Color.White.copy(alpha = 0.85f),
+                    style = Stroke(width = 3f, cap = StrokeCap.Round)
+                )
+
+                // Secondary lower orbital ring echoing light below
+                val arcPath2 = Path().apply {
+                    moveTo(w * 0.15f, h * 0.46f)
+                    cubicTo(
+                        w * 0.45f, h * 0.63f,
+                        w * 0.68f, h * 0.79f,
+                        w * 0.82f, h * 0.86f
+                    )
+                }
+                drawPath(
+                    path = arcPath2,
+                    color = Color(0xFFFFD54F).copy(alpha = 0.22f),
+                    style = Stroke(width = 8f, cap = StrokeCap.Round)
+                )
+                drawPath(
+                    path = arcPath2,
+                    color = Color.White.copy(alpha = 0.45f),
+                    style = Stroke(width = 1.8f, cap = StrokeCap.Round)
+                )
+            }
+        }
+
         // Star particle noise canvas overlay if Wallpaper is SPACE
         if (wallpaper == WallpaperType.SPACE) {
             Canvas(modifier = Modifier.fillMaxSize()) {
@@ -615,37 +718,71 @@ fun VirtualDeskGrid(viewModel: OSViewModel, onLaunchApp: (AppId) -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onLongPress = {
-                        viewModel.setLauncherSettingsOpen(true)
-                    }
-                )
-            }
             .padding(top = 40.dp, bottom = 12.dp)
     ) {
-        // Upper Digital Clock & dynamic Date Desk Widget
+        // Desktop Wallpaper area touch capture to trigger launcher settings
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onLongPress = {
+                            viewModel.setLauncherSettingsOpen(true)
+                        }
+                    )
+                }
+        )
+
+        // Upper Digital Clock & dynamic Date Desk Widget - Elegant vertical stack based on screenshot
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 26.dp)
+                .padding(top = 8.dp)
                 .clickable { viewModel.openApp(AppId.SETTINGS) },
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                "13:22",
+                "00",
                 color = Color.White,
-                fontSize = 42.sp,
-                fontWeight = FontWeight.ExtraLight,
+                fontSize = 58.sp,
+                fontWeight = FontWeight.Light,
+                lineHeight = 52.sp,
                 letterSpacing = 1.sp
             )
-            Spacer(modifier = Modifier.height(2.dp))
             Text(
-                "Thursday, Jun 11",
-                color = Color.White.copy(alpha = 0.7f),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
+                "26",
+                color = Color.White,
+                fontSize = 58.sp,
+                fontWeight = FontWeight.Light,
+                lineHeight = 52.sp,
+                letterSpacing = 1.sp
             )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                "6/12 пт",
+                color = Color.White,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Normal
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.alpha(0.65f)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Cloud,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(12.dp)
+                )
+                Text(
+                    "Преимущественно облачно • 19°C",
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Normal
+                )
+            }
         }
 
         // Mid apps Grid (2 rows, 4 columns)
@@ -738,7 +875,7 @@ fun VirtualDeskGrid(viewModel: OSViewModel, onLaunchApp: (AppId) -> Unit) {
                     modifier = Modifier.padding(vertical = 8.dp)
                 ) {
                     Text(
-                        text = "Персонализация рабочего стола в стиле Nothing OS. Сделайте интерфейс лаконичным.",
+                        text = "Персонализация премиального рабочего стола. Сделайте интерфейс лаконичным и стильным.",
                         color = Color.LightGray,
                         fontSize = 12.sp,
                         lineHeight = 16.sp
@@ -762,7 +899,7 @@ fun VirtualDeskGrid(viewModel: OSViewModel, onLaunchApp: (AppId) -> Unit) {
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "Показывать имена приложений",
+                                text = "Показывать имена приложений под иконками",
                                 color = Color.Gray,
                                 fontSize = 11.sp
                             )
@@ -770,44 +907,6 @@ fun VirtualDeskGrid(viewModel: OSViewModel, onLaunchApp: (AppId) -> Unit) {
                         Switch(
                             checked = showAppLabels,
                             onCheckedChange = { viewModel.setAppLabels(it) },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color(0xFF12141C),
-                                checkedTrackColor = Color(0xFF00FFCC),
-                                uncheckedThumbColor = Color.LightGray,
-                                uncheckedTrackColor = Color.DarkGray
-                            )
-                        )
-                    }
-
-                    // Divider spacer
-                    Box(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.White.copy(alpha = 0.08f)))
-
-                    // Toggle Nothing OS theme pack
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { viewModel.toggleNothingIconTheme() }
-                            .padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Черно-белые значки (Nothing)",
-                                color = Color.White,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "Минималистичный монохромный стиль",
-                                color = Color.Gray,
-                                fontSize = 11.sp
-                            )
-                        }
-                        Switch(
-                            checked = useNothingIconTheme,
-                            onCheckedChange = { viewModel.setNothingIconTheme(it) },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Color(0xFF12141C),
                                 checkedTrackColor = Color(0xFF00FFCC),
@@ -841,7 +940,7 @@ fun DeskIconItem(
     showLabels: Boolean,
     onClick: () -> Unit
 ) {
-    val iconShape = RoundedCornerShape(14.dp) // Squircle - Rounded Square but not sharp corners
+    val iconShape = RoundedCornerShape(13.dp) // Squircle - Rounded Square but not sharp corners (more square)
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -850,27 +949,21 @@ fun DeskIconItem(
             .clickable(onClick = onClick)
             .testTag("app_${trimmed(id)}")
     ) {
-        val backgroundBrushOrColor = remember(useNothingTheme, themeColor) {
-            if (useNothingTheme) {
-                Brush.verticalGradient(listOf(Color(0xFF1D1F24), Color(0xFF16181C)))
-            } else {
-                Brush.verticalGradient(listOf(themeColor, themeColor.copy(alpha = 0.65f)))
-            }
+        val backgroundBrush = remember {
+            Brush.verticalGradient(listOf(Color(0xFF2E313E), Color(0xFF21232B)))
         }
-        val iconTint = if (useNothingTheme) Color.White else Color.White
-        val borderAlpha = if (useNothingTheme) 0.12f else 0.2f
 
         Box(
             modifier = Modifier
                 .size(48.dp)
-                .background(backgroundBrushOrColor, iconShape)
-                .border(1.dp, Color.White.copy(alpha = borderAlpha), iconShape),
+                .background(backgroundBrush, iconShape)
+                .border(0.8.dp, Color.White.copy(alpha = 0.12f), iconShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = iconTint,
+                tint = Color.White,
                 modifier = Modifier.size(22.dp)
             )
         }
@@ -897,23 +990,17 @@ fun DockIconItem(
     useNothingTheme: Boolean,
     onClick: () -> Unit
 ) {
-    val iconShape = RoundedCornerShape(14.dp) // Squircle - Rounded Square but not sharp corners
+    val iconShape = RoundedCornerShape(13.dp) // Squircle - Rounded Square but not sharp corners (more square)
 
-    val backgroundBrushOrColor = remember(useNothingTheme, themeColor) {
-        if (useNothingTheme) {
-            Brush.verticalGradient(listOf(Color(0xFF1D1F24), Color(0xFF16181C)))
-        } else {
-            Brush.linearGradient(listOf(themeColor, themeColor.copy(alpha = 0.65f)))
-        }
+    val backgroundBrush = remember {
+        Brush.verticalGradient(listOf(Color(0xFF2E313E), Color(0xFF21232B)))
     }
-    val iconTint = if (useNothingTheme) Color.White else Color.White
-    val borderAlpha = if (useNothingTheme) 0.12f else 0.2f
 
     Box(
         modifier = Modifier
             .size(46.dp)
-            .background(backgroundBrushOrColor, iconShape)
-            .border(1.dp, Color.White.copy(alpha = borderAlpha), iconShape)
+            .background(backgroundBrush, iconShape)
+            .border(0.8.dp, Color.White.copy(alpha = 0.12f), iconShape)
             .clickable(onClick = onClick)
             .testTag("dock_${trimmed(id)}"),
         contentAlignment = Alignment.Center
@@ -921,7 +1008,7 @@ fun DockIconItem(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = iconTint,
+            tint = Color.White,
             modifier = Modifier.size(20.dp)
         )
     }
@@ -950,11 +1037,10 @@ fun SystemOverlays(viewModel: OSViewModel) {
                     .fillMaxSize()
                     .alpha(dimProgress)
                     .background(Color.Black)
-                    .clickable(enabled = false) {}
             )
         }
 
-        // Notch & Status Bar Top Row
+        // Punch-hole Centered Front Camera instead of Dynamic Island pill
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -974,92 +1060,13 @@ fun SystemOverlays(viewModel: OSViewModel) {
                     .clickable { viewModel.toggleQuickSettings() }
             )
 
-            // Dynamic Island Capsule
+            // Minimalist centered Punch-hole Camera
             Box(
                 modifier = Modifier
-                    .padding(horizontal = 6.dp)
-                    .animateContentSize(animationSpec = spring(stiffness = Spring.StiffnessLow))
-                    .width(if (showExpandedNotch && isMusicPlaying) 180.dp else 105.dp)
-                    .height(if (showExpandedNotch && isMusicPlaying) 42.dp else 20.dp)
-                    .background(Color.Black, RoundedCornerShape(20.dp))
-                    .clickable { showExpandedNotch = !showExpandedNotch },
-                contentAlignment = Alignment.Center
-            ) {
-                if (showExpandedNotch && isMusicPlaying) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.MusicNote,
-                            contentDescription = null,
-                            tint = Color(0xFFE91E63),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Column(modifier = Modifier.weight(1f).padding(horizontal = 6.dp)) {
-                            Text(
-                                viewModel.trackTitles[trackIndex],
-                                color = Color.White,
-                                fontSize = 9.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                "Playing Now",
-                                color = Color.Gray,
-                                fontSize = 7.sp
-                            )
-                        }
-                        // Micro wave animating bars
-                        Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
-                            val pulse = rememberInfiniteTransition()
-                            for (i in 0..2) {
-                                val speed = 250 + (i * 120)
-                                val scale by pulse.animateFloat(
-                                    initialValue = 0.2f,
-                                    targetValue = 1.0f,
-                                    animationSpec = infiniteRepeatable(
-                                        animation = tween(speed, easing = LinearEasing),
-                                        repeatMode = RepeatMode.Reverse
-                                    )
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .size(2.dp, 10.dp)
-                                        .alpha(scale)
-                                        .background(Color(0xFFE91E63))
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceAround
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .background(Color(0xFF1E272C), CircleShape)
-                        )
-                        Text(
-                            text = if (isMusicPlaying) "Playing..." else "SimOS",
-                            color = Color.LightGray,
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Box(
-                            modifier = Modifier
-                                .size(4.dp)
-                                .background(Color(0xFF0D47A1), CircleShape)
-                        )
-                    }
-                }
-            }
+                    .size(9.dp)
+                    .background(Color.Black, CircleShape)
+                    .border(0.5.dp, Color.White.copy(alpha = 0.15f), CircleShape)
+            )
 
             // Power Icons Row
             Row(
