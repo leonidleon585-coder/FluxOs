@@ -12,10 +12,6 @@
     <path
         android:fillColor="#0B0D19"
         android:pathData="M41,21h26c1.6,0 3,1.4 3,3v50c0,1.6 -1.4,3 -3,3H41c-1.6,0 -3,-1.4 -3,-3V24c0,-1.6 1.4,-3 3,-3z" />
-    <!-- Punch-hole front camera dot -->
-    <path
-        android:fillColor="#000000"
-        android:pathData="M54,24a2,2 0 1,0 0,4a2,2 0 1,0 0,-4" />
     <!-- Glowing UI core marker -->
     <path
         android:fillColor="#00FFCC"

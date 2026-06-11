@@ -27,7 +27,8 @@ enum class WallpaperType {
     AURORA,
     SPACE,
     EMERALD,
-    NEON
+    NEON,
+    LOCAL
 }
 
 enum class TerminalTheme {
@@ -105,6 +106,9 @@ class OSViewModel : ViewModel() {
     private val _wallpaper = MutableStateFlow(WallpaperType.AURORA)
     val wallpaper: StateFlow<WallpaperType> = _wallpaper.asStateFlow()
 
+    private val _customLocalWallpaper = MutableStateFlow<List<Long>?>(null)
+    val customLocalWallpaper: StateFlow<List<Long>?> = _customLocalWallpaper.asStateFlow()
+
     // Animation speeds: 1200ms (Slow-mo), 350ms (Normal), 150ms (Fast)
     private val _animationSpeedMs = MutableStateFlow(350)
     val animationSpeedMs: StateFlow<Int> = _animationSpeedMs.asStateFlow()
@@ -133,7 +137,7 @@ class OSViewModel : ViewModel() {
     val terminalTheme: StateFlow<TerminalTheme> = _terminalTheme.asStateFlow()
 
     // Browser state
-    private val _browserUrl = MutableStateFlow("aura://search")
+    private val _browserUrl = MutableStateFlow("flux://search")
     val browserUrl: StateFlow<String> = _browserUrl.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
@@ -157,14 +161,14 @@ class OSViewModel : ViewModel() {
         // Initialize default notes
         _notesList.value = listOf(
             Note(
-                title = "AuraOS Vision",
-                content = "Welcome to AuraOS! This operating system simulation features ultra-fast animations, immersive physics-based feedback, and clean Material 3 cards. Gestures replace standard button grids in the name of future fluid motion.",
+                title = "FluxOS Vision",
+                content = "Welcome to FluxOS! This operating system simulation features ultra-fast animations, immersive physics-based feedback, and clean Material 3 cards. Gestures replace standard button grids in the name of future fluid motion.",
                 date = "June 11, 2026",
                 colorHex = 0xFF2D3250
             ),
             Note(
                 title = "Secrets command list",
-                content = "Access OrionShell terminal and try executing:\n- neofetch\n- matrix\n- clear\n- theme",
+                content = "Access FluxShell terminal and try executing:\n- neofetch\n- matrix\n- clear\n- theme",
                 date = "June 11, 2026",
                 colorHex = 0xFF5B4B8A
             )
@@ -191,7 +195,7 @@ class OSViewModel : ViewModel() {
 
         // Terminal initial messages
         _terminalHistory.value = listOf(
-            "AuraOS Core [Version 5.2.2026]",
+            "FluxOS Core [Version 5.2.2026]",
             "All physical virtual controllers green.",
             "Type 'help' for command directory."
         )
@@ -284,6 +288,11 @@ class OSViewModel : ViewModel() {
         _wallpaper.value = wp
     }
 
+    fun setCustomLocalWallpaper(gradient: List<Long>) {
+        _customLocalWallpaper.value = gradient
+        _wallpaper.value = WallpaperType.LOCAL
+    }
+
     fun setAnimationSpeed(ms: Int) {
         _animationSpeedMs.value = ms
     }
@@ -313,7 +322,7 @@ class OSViewModel : ViewModel() {
         if (trimmed.isEmpty()) return
 
         val responseList = mutableListOf<String>()
-        responseList.add("aura@system:~$ $cmd")
+        responseList.add("flux@system:~$ $cmd")
 
         when (trimmed) {
             "help" -> {
@@ -325,10 +334,10 @@ class OSViewModel : ViewModel() {
                 responseList.add("  system   - Virtual file storage disk status")
             }
             "neofetch" -> {
-                responseList.add("       .:^~^:.       OS: AuraOS v5.2 (Orion-X64)")
+                responseList.add("       .:^~^:.       OS: FluxOS v5.2 (Flux-X64)")
                 responseList.add("     .:~7????7~:.    Kernel: Virtual ARM Cortex-G9")
                 responseList.add("    :?7::::::::7?:   Uptime: 2 hours, 14 mins")
-                responseList.add("   .77::^^^^^^::77.  Shell: OrionShell 1.0")
+                responseList.add("   .77::^^^^^^::77.  Shell: FluxShell 1.0")
                 responseList.add("   :?7::7????7::7?:  Theme: Premium Nebula Midnight")
                 responseList.add("    :?7::::::::7?:   Processor: Simulated Core-8 Quantum")
                 responseList.add("     .:~7????7~:.    Memory: 16 GB Physical / 512 GB Virtual")
@@ -384,7 +393,7 @@ class OSViewModel : ViewModel() {
     fun submitSearch(query: String) {
         _searchQuery.value = query
         if (query.isNotEmpty()) {
-            _browserUrl.value = "aura://results?q=${query.replace(" ", "+")}"
+            _browserUrl.value = "flux://results?q=${query.replace(" ", "+")}"
         }
     }
 

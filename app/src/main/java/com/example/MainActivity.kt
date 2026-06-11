@@ -28,6 +28,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -267,7 +269,7 @@ fun OSSimulationWorkspace() {
                     )
                 }
 
-                // Main Polished Premium Rose Gold Frame (Rebuilt from scratch with exact styling)
+                // Main Polished Premium Rose Gold Frame (Rebuilt with extra realism, metal chamfers, and waterfall glasses)
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -276,10 +278,14 @@ fun OSSimulationWorkspace() {
                             width = 2.dp,
                             brush = Brush.verticalGradient(
                                 listOf(
-                                    Color(0xFFFFF2EC), // Ultra specular light reflections at curving limits
-                                    Color(0xFFE5B99F), // Mid-body radiant Rose Gold
-                                    Color(0xFFCA9477), // Curved shadow profile
-                                    Color(0xFFE5B99F)  // Symmetrical lower base
+                                    Color(0xFFFFF7F2), // Specular light gleam on top chamfer
+                                    Color(0xFFEAD2C3), // Soft light rose gold
+                                    Color(0xFFD3A186), // Mid rose gold
+                                    Color(0xFFB17354), // Deep metal shadow contour
+                                    Color(0xFFF9EAE1), // Pronounced light reflection strip
+                                    Color(0xFFCA9477), // Warm copper reflections
+                                    Color(0xFFEAD2C3), // Low-edge soft light
+                                    Color(0xFF904E2D)  // Base grounding shadow
                                 )
                             ),
                             shape = RoundedCornerShape(46.dp)
@@ -292,8 +298,13 @@ fun OSSimulationWorkspace() {
                         )
                         .padding(2.5.dp) // Bezel core divider
                         .border(
-                            width = 0.8.dp,
-                            color = Color(0xFF2A1F1B), // Inner gasket metallic highlight
+                            width = 1.2.dp,
+                            brush = Brush.linearGradient(
+                                listOf(
+                                    Color(0xFFFFF2EC).copy(alpha = 0.5f),
+                                    Color(0xFF42302A)
+                                )
+                            ), // Inner gasket metallic highlight with high-contrast gradient
                             shape = RoundedCornerShape(44.dp)
                         )
                         .padding(1.5.dp) // Screen glass bezel margin
@@ -310,7 +321,7 @@ fun OSSimulationWorkspace() {
                     ) {
                         if (isPowerOn) {
                             PhoneScreenContent(viewModel = osViewModel)
-
+ 
                             // Overlay Volume HUD indicator
                             androidx.compose.animation.AnimatedVisibility(
                                 visible = showVolumeHUD,
@@ -377,9 +388,81 @@ fun OSSimulationWorkspace() {
                                         modifier = Modifier.size(40.dp)
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
-                                    Text("AuraOS Offline", color = Color.DarkGray, fontSize = 12.sp)
+                                    Text("FluxOS Offline", color = Color.DarkGray, fontSize = 12.sp)
                                 }
                             }
+                        }
+
+                        // Premium Real-time 3D Curved Glass Glare & Waterfall Screen Edge Overlay
+                        // Drawn on top of the viewport (both awake and asleep locks) to maximize fidelity
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val w = size.width
+                            val h = size.height
+
+                            // 1. Left waterfall side reflection cylinder
+                            drawRect(
+                                brush = Brush.horizontalGradient(
+                                    colorStops = arrayOf(
+                                        0.0f to Color.Black.copy(alpha = 0.5f),      // Edge border shadow
+                                        0.3f to Color.White.copy(alpha = 0.08f),     // First cylinder light bend
+                                        0.65f to Color.White.copy(alpha = 0.24f),    // Sharp specular waterfall reflection line
+                                        0.82f to Color.White.copy(alpha = 0.03f),    // Gentle highlight fading
+                                        1.0f to Color.Transparent
+                                    ),
+                                    startX = 0f,
+                                    endX = 14.dp.toPx()
+                                ),
+                                topLeft = Offset(0f, 0f),
+                                size = androidx.compose.ui.geometry.Size(14.dp.toPx(), h)
+                            )
+
+                            // 2. Right waterfall side reflection cylinder
+                            drawRect(
+                                brush = Brush.horizontalGradient(
+                                    colorStops = arrayOf(
+                                        0.0f to Color.Transparent,
+                                        0.18f to Color.White.copy(alpha = 0.03f),   // Gentle highlight start
+                                        0.35f to Color.White.copy(alpha = 0.24f),   // Sharp specular waterfall reflection line
+                                        0.7f to Color.White.copy(alpha = 0.08f),    // Second cylinder light bend
+                                        1.0f to Color.Black.copy(alpha = 0.5f)      // Edge shadow transition
+                                    ),
+                                    startX = w - 14.dp.toPx(),
+                                    endX = w
+                                ),
+                                topLeft = Offset(w - 14.dp.toPx(), 0f),
+                                size = androidx.compose.ui.geometry.Size(14.dp.toPx(), h)
+                            )
+
+                            // 3. Luxurious swept diagonal curved reflection across top glass surface
+                            val reflectionPath = Path().apply {
+                                moveTo(-50f, h * 0.08f)
+                                cubicTo(w * 0.25f, h * 0.04f, w * 0.85f, h * 0.32f, w + 50f, h * 0.35f)
+                                lineTo(w + 50f, h * 0.37f)
+                                cubicTo(w * 0.85f, h * 0.34f, w * 0.25f, h * 0.06f, -50f, h * 0.10f)
+                                close()
+                            }
+                            drawPath(
+                                path = reflectionPath,
+                                brush = Brush.verticalGradient(
+                                    listOf(
+                                        Color.White.copy(alpha = 0.16f),
+                                        Color.White.copy(alpha = 0.04f)
+                                    )
+                                )
+                            )
+
+                            // Secondary ambient glass glare spanning lower section
+                            val lowerReflectionPath = Path().apply {
+                                moveTo(-50f, h * 0.72f)
+                                cubicTo(w * 0.32f, h * 0.74f, w * 0.78f, h * 0.90f, w + 50f, h * 0.92f)
+                                lineTo(w + 50f, h * 0.93f)
+                                cubicTo(w * 0.78f, h * 0.91f, w * 0.32f, h * 0.75f, -50f, h * 0.73f)
+                                close()
+                            }
+                            drawPath(
+                                path = lowerReflectionPath,
+                                color = Color.White.copy(alpha = 0.06f)
+                            )
                         }
                     }
                 }
@@ -390,36 +473,80 @@ fun OSSimulationWorkspace() {
 
 @Composable
 fun PhoneScreenContent(viewModel: OSViewModel) {
-    val isLocked by viewModel.isScreenLocked.collectAsStateWithLifecycle()
+    val isLockedState by viewModel.isScreenLocked.collectAsStateWithLifecycle()
     val wallpaper by viewModel.wallpaper.collectAsStateWithLifecycle()
+    val customLocalWallpaper by viewModel.customLocalWallpaper.collectAsStateWithLifecycle()
     val activeApp by viewModel.activeApp.collectAsStateWithLifecycle()
 
-    var animatingApp by remember { mutableStateOf<AppId?>(null) }
-    var isOpening by remember { mutableStateOf(false) }
+    // Smooth lock-screen sliding unlock progress (0f when locked, 1f when fully unlocked)
+    val unlockProgress by animateFloatAsState(
+        targetValue = if (isLockedState) 0f else 1f,
+        animationSpec = spring(
+            dampingRatio = 0.85f, // Luxury elastic slide slide
+            stiffness = Spring.StiffnessLow
+        )
+    )
+
+    // Parallel app launching/closing window maps
+    val activeWindows = remember { mutableStateMapOf<AppId, Animatable<Float, AnimationVector1D>>() }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(activeApp) {
         if (activeApp != null) {
-            animatingApp = activeApp
-            isOpening = true
+            val opened = activeApp!!
+            if (!activeWindows.containsKey(opened)) {
+                activeWindows[opened] = Animatable(0f)
+            }
+            // Launch parallel spring animations
+            launch {
+                activeWindows[opened]?.animateTo(
+                    targetValue = 1f,
+                    animationSpec = spring(
+                        dampingRatio = 0.72f, // Bouncy and fluid like HarmonyOS
+                        stiffness = 320f
+                    )
+                )
+            }
+            // Concurrently close other windows in parallel
+            activeWindows.forEach { (app, animatable) ->
+                if (app != opened && animatable.targetValue > 0f) {
+                    launch {
+                        animatable.animateTo(
+                            targetValue = 0f,
+                            animationSpec = spring(
+                                dampingRatio = 0.8f,
+                                stiffness = 350f
+                            )
+                        )
+                        if (animatable.value == 0f && activeApp != app) {
+                            activeWindows.remove(app)
+                        }
+                    }
+                }
+            }
         } else {
-            isOpening = false
+            // Close all windows concurrently in parallel
+            activeWindows.forEach { (app, animatable) ->
+                if (animatable.targetValue > 0f) {
+                    launch {
+                        animatable.animateTo(
+                            targetValue = 0f,
+                            animationSpec = spring(
+                                dampingRatio = 0.8f,
+                                stiffness = 320f
+                            )
+                        )
+                        if (animatable.value == 0f && activeApp != app) {
+                            activeWindows.remove(app)
+                        }
+                    }
+                }
+            }
         }
     }
 
-    // Animation transition logic from coordinate presets
-    val animDurationMs by viewModel.animationSpeedMs.collectAsStateWithLifecycle()
-    val transitionProgress by animateFloatAsState(
-        targetValue = if (isOpening) 1f else 0f,
-        animationSpec = tween(durationMillis = animDurationMs, easing = FastOutSlowInEasing),
-        finishedListener = { progress ->
-            if (progress == 0f) {
-                animatingApp = null
-            }
-        }
-    )
-
-    // Dynamic background matching theme (Rebuilt Aurora sky to match reference photo perfectly)
-    val wallpaperBrush = remember(wallpaper) {
+    // Dynamic background matching theme
+    val wallpaperBrush = remember(wallpaper, customLocalWallpaper) {
         when (wallpaper) {
             WallpaperType.AURORA -> Brush.verticalGradient(
                 listOf(
@@ -432,22 +559,37 @@ fun PhoneScreenContent(viewModel: OSViewModel) {
             WallpaperType.SPACE -> Brush.linearGradient(listOf(Color(0xFF110E24), Color(0xFF281C4F), Color(0xFF6A1B9A)))
             WallpaperType.EMERALD -> Brush.verticalGradient(listOf(Color(0xFF021B10), Color(0xFF0F5232), Color(0xFF1E824C)))
             WallpaperType.NEON -> Brush.radialGradient(listOf(Color(0xFF3B0B3B), Color(0xFF1F0C2F), Color(0xFF0F0418)))
+            WallpaperType.LOCAL -> {
+                if (customLocalWallpaper != null) {
+                    Brush.verticalGradient(customLocalWallpaper!!.map { Color(it) })
+                } else {
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0xFF2E3138),
+                            Color(0xFF1D1F23),
+                            Color(0xFF101112)
+                        )
+                    )
+                }
+            }
         }
     }
 
     // Outer screen base container with selected wallpaper
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(wallpaperBrush)
     ) {
-        // Beautiful orbital crescent sphere glass curve drawing for the Rose Gold edition
+        val wDp = maxWidth
+        val hDp = maxHeight
+
+        // Beautiful orbital crescent sphere glass curve drawing
         if (wallpaper == WallpaperType.AURORA) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val w = size.width
                 val h = size.height
 
-                // Elegant swooping crescent path representing the curved glass bubble from the photo
                 val arcPath1 = Path().apply {
                     moveTo(-w * 0.15f, h * 0.18f)
                     cubicTo(
@@ -457,28 +599,24 @@ fun PhoneScreenContent(viewModel: OSViewModel) {
                     )
                 }
 
-                // 2. Neon-style ambient warm core blur
                 drawPath(
                     path = arcPath1,
                     color = Color(0xFFFF8A65).copy(alpha = 0.22f),
                     style = Stroke(width = 40f, cap = StrokeCap.Round)
                 )
 
-                // 3. Medium glowing orange-yellow light leakage
                 drawPath(
                     path = arcPath1,
                     color = Color(0xFFFFD54F).copy(alpha = 0.45f),
                     style = Stroke(width = 12f, cap = StrokeCap.Round)
                 )
 
-                // 4. Razor-sharp white reflection highlight
                 drawPath(
                     path = arcPath1,
                     color = Color.White.copy(alpha = 0.85f),
                     style = Stroke(width = 3f, cap = StrokeCap.Round)
                 )
 
-                // Secondary lower orbital ring echoing light below
                 val arcPath2 = Path().apply {
                     moveTo(w * 0.15f, h * 0.46f)
                     cubicTo(
@@ -513,51 +651,72 @@ fun PhoneScreenContent(viewModel: OSViewModel) {
             }
         }
 
-        // Active screens depending on Lock screen state
-        if (isLocked) {
-            VirtualLockScreen(viewModel)
-        } else {
-            // Main operating desk layer
-            VirtualDeskGrid(viewModel) { app ->
-                viewModel.openApp(app)
-            }
-
-            // Animate App Window if currently active or closing down
-            animatingApp?.let { app ->
-                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                    val wDp = maxWidth
-                    val hDp = maxHeight
-
-                    // Look up precise coordinate source
-                    val iconCenter = getIconCenter(app, wDp, hDp)
-
-                    // Linearly translate parameters on the progress timeline
-                    val curWidth = lerpDp(48.dp, wDp, transitionProgress)
-                    val curHeight = lerpDp(48.dp, hDp, transitionProgress)
-                    val curX = lerpDp(iconCenter.x, wDp / 2f, transitionProgress)
-                    val curY = lerpDp(iconCenter.y, hDp / 2f, transitionProgress)
-                    val curRadius = lerpDp(24.dp, 32.dp, transitionProgress)
-                    val curAlpha = lerpFloat(0f, 1f, transitionProgress)
-
-                    Box(
-                        modifier = Modifier
-                            .offset(
-                                x = curX - (curWidth / 2f),
-                                y = curY - (curHeight / 2f)
-                            )
-                            .size(width = curWidth, height = curHeight)
-                            .clip(RoundedCornerShape(curRadius))
-                            .alpha(curAlpha)
-                            .background(Color(0xFF12141C))
-                            .clickable(enabled = false) {} // block click propagation
-                    ) {
-                        AppShell(app = app, viewModel = viewModel, contentPercent = transitionProgress)
-                    }
+        // 1. Desktop layer (scales up and fades in during unlock transition)
+        if (unlockProgress > 0.01f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .scale(0.88f + (0.12f * unlockProgress))
+                    .alpha(unlockProgress)
+            ) {
+                VirtualDeskGrid(viewModel) { app ->
+                    viewModel.openApp(app)
                 }
             }
+        }
 
-            // Central status indicator layer & System Control Pull-downs
-            SystemOverlays(viewModel)
+        // 2. Parallel Active App Scaling Windows (looping over concurrently animating instances)
+        activeWindows.forEach { (app, animatable) ->
+            val progress = animatable.value
+            if (progress > 0.002f) {
+                // Map coordinates
+                val iconCenter = getIconCenter(app, wDp, hDp)
+
+                val curWidth = lerpDp(54.dp, wDp, progress)
+                val curHeight = lerpDp(54.dp, hDp, progress)
+                val curX = lerpDp(iconCenter.x, wDp / 2f, progress)
+                val curY = lerpDp(iconCenter.y, hDp / 2f, progress)
+                val curRadius = lerpDp(16.dp, 36.dp, progress)
+                val curAlpha = lerpFloat(0f, 1f, (progress * 3f).coerceAtMost(1f))
+
+                Box(
+                    modifier = Modifier
+                        .offset(
+                            x = curX - (curWidth / 2f),
+                            y = curY - (curHeight / 2f)
+                        )
+                        .size(width = curWidth, height = curHeight)
+                        .clip(RoundedCornerShape(curRadius))
+                        .alpha(curAlpha)
+                        .background(Color(0xFF12141C))
+                        .clickable(enabled = false) {}
+                ) {
+                    AppShell(app = app, viewModel = viewModel, contentPercent = progress)
+                }
+            }
+        }
+
+        // 3. Central status overlays / pull-downs (only shown when system is completely or mostly unlocked)
+        if (unlockProgress > 0.01f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .alpha(unlockProgress)
+            ) {
+                SystemOverlays(viewModel)
+            }
+        }
+
+        // 4. Lock Screen Overlay (slides vertically up and fades out cleanly upon unlock)
+        if (unlockProgress < 0.99f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .offset(y = -hDp * unlockProgress)
+                    .alpha(1f - unlockProgress)
+            ) {
+                VirtualLockScreen(viewModel)
+            }
         }
     }
 }
@@ -637,7 +796,7 @@ fun VirtualLockScreen(viewModel: OSViewModel) {
                             modifier = Modifier.size(14.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Aura Sim Active", color = Color.White, fontSize = 11.sp)
+                        Text("Flux Sim Active", color = Color.White, fontSize = 11.sp)
                     }
                 }
             }
@@ -670,7 +829,7 @@ fun VirtualLockScreen(viewModel: OSViewModel) {
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        Text("Orion OS Update", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 12.sp)
+                        Text("FluxOS Update", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 12.sp)
                         Text("V5.2 system core successfully compiled.", color = Color.LightGray, fontSize = 11.sp)
                     }
                 }
@@ -813,7 +972,7 @@ fun VirtualDeskGrid(viewModel: OSViewModel, onLaunchApp: (AppId) -> Unit) {
                 ) {
                     DeskIconItem(AppId.CAMERA, "Aperture", Icons.Default.PhotoCamera, Color(0xFF00ACC1), useNothingIconTheme, showAppLabels) { onLaunchApp(AppId.CAMERA) }
                     DeskIconItem(AppId.GALLERY, "PixelDeck", Icons.Default.PhotoLibrary, Color(0xFF43A047), useNothingIconTheme, showAppLabels) { onLaunchApp(AppId.GALLERY) }
-                    DeskIconItem(AppId.TERMINAL, "OrionShell", Icons.Default.Terminal, Color(0xFF2E7D32), useNothingIconTheme, showAppLabels) { onLaunchApp(AppId.TERMINAL) }
+                    DeskIconItem(AppId.TERMINAL, "FluxShell", Icons.Default.Terminal, Color(0xFF2E7D32), useNothingIconTheme, showAppLabels) { onLaunchApp(AppId.TERMINAL) }
                     DeskIconItem(AppId.BROWSER, "WebSim", Icons.Default.Language, Color(0xFF1E88E5), useNothingIconTheme, showAppLabels) { onLaunchApp(AppId.BROWSER) }
                 }
             }
@@ -940,31 +1099,40 @@ fun DeskIconItem(
     showLabels: Boolean,
     onClick: () -> Unit
 ) {
-    val iconShape = RoundedCornerShape(13.dp) // Squircle - Rounded Square but not sharp corners (more square)
+    val iconShape = RoundedCornerShape(16.dp) // Exquisite organic modern OS squircle
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .width(66.dp)
+            .width(if (showLabels) 68.dp else 76.dp)
             .clickable(onClick = onClick)
             .testTag("app_${trimmed(id)}")
     ) {
-        val backgroundBrush = remember {
-            Brush.verticalGradient(listOf(Color(0xFF2E313E), Color(0xFF21232B)))
+        // High-end dual dynamic background brush based on monochromatic preference toggle
+        val backgroundBrush = remember(useNothingTheme, themeColor) {
+            if (useNothingTheme) {
+                Brush.verticalGradient(listOf(Color(0xFF1C1D24), Color(0xFF101114)))
+            } else {
+                Brush.verticalGradient(listOf(themeColor, themeColor.copy(alpha = 0.65f)))
+            }
         }
 
         Box(
             modifier = Modifier
-                .size(48.dp)
+                .size(if (showLabels) 54.dp else 66.dp) // Grows significantly larger when labels are hidden!
                 .background(backgroundBrush, iconShape)
-                .border(0.8.dp, Color.White.copy(alpha = 0.12f), iconShape),
+                .border(
+                    width = 0.8.dp,
+                    color = if (useNothingTheme) Color.White.copy(alpha = 0.12f) else themeColor.copy(alpha = 0.3f),
+                    shape = iconShape
+                ),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = Color.White,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(if (showLabels) 24.dp else 32.dp) // Grows much larger to stand out!
             )
         }
 
@@ -990,17 +1158,25 @@ fun DockIconItem(
     useNothingTheme: Boolean,
     onClick: () -> Unit
 ) {
-    val iconShape = RoundedCornerShape(13.dp) // Squircle - Rounded Square but not sharp corners (more square)
+    val iconShape = RoundedCornerShape(16.dp) // squircle alignment
 
-    val backgroundBrush = remember {
-        Brush.verticalGradient(listOf(Color(0xFF2E313E), Color(0xFF21232B)))
+    val backgroundBrush = remember(useNothingTheme, themeColor) {
+        if (useNothingTheme) {
+            Brush.verticalGradient(listOf(Color(0xFF1C1D24), Color(0xFF101114)))
+        } else {
+            Brush.verticalGradient(listOf(themeColor, themeColor.copy(alpha = 0.65f)))
+        }
     }
 
     Box(
         modifier = Modifier
-            .size(46.dp)
+            .size(54.dp)
             .background(backgroundBrush, iconShape)
-            .border(0.8.dp, Color.White.copy(alpha = 0.12f), iconShape)
+            .border(
+                width = 0.8.dp,
+                color = if (useNothingTheme) Color.White.copy(alpha = 0.12f) else themeColor.copy(alpha = 0.3f),
+                shape = iconShape
+            )
             .clickable(onClick = onClick)
             .testTag("dock_${trimmed(id)}"),
         contentAlignment = Alignment.Center
@@ -1009,7 +1185,7 @@ fun DockIconItem(
             imageVector = icon,
             contentDescription = null,
             tint = Color.White,
-            modifier = Modifier.size(20.dp)
+            modifier = Modifier.size(26.dp)
         )
     }
 }
@@ -1040,11 +1216,11 @@ fun SystemOverlays(viewModel: OSViewModel) {
             )
         }
 
-        // Punch-hole Centered Front Camera instead of Dynamic Island pill
+        // Edge-to-edge Status Bar aligned beautifully with the new frame
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .statusBarsPadding()
+                .padding(top = 10.dp)
                 .padding(horizontal = 14.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
@@ -1060,13 +1236,8 @@ fun SystemOverlays(viewModel: OSViewModel) {
                     .clickable { viewModel.toggleQuickSettings() }
             )
 
-            // Minimalist centered Punch-hole Camera
-            Box(
-                modifier = Modifier
-                    .size(9.dp)
-                    .background(Color.Black, CircleShape)
-                    .border(0.5.dp, Color.White.copy(alpha = 0.15f), CircleShape)
-            )
+            // Spacing to keep SpaceBetween layout perfectly aligned to corners without center camera
+            Spacer(modifier = Modifier.width(9.dp))
 
             // Power Icons Row
             Row(
@@ -1121,8 +1292,7 @@ fun ControlCenterPanel(viewModel: OSViewModel) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(14.dp)
-            .statusBarsPadding()
-            .padding(top = 28.dp),
+            .padding(top = 34.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF14161F).copy(alpha = 0.96f)),
         shape = RoundedCornerShape(26.dp),
         border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.12f))
@@ -1312,6 +1482,8 @@ fun AppShell(app: AppId, viewModel: OSViewModel, contentPercent: Float) {
 fun SettingsAppScreen(viewModel: OSViewModel) {
     val wallpaper by viewModel.wallpaper.collectAsStateWithLifecycle()
     val speedMs by viewModel.animationSpeedMs.collectAsStateWithLifecycle()
+    val showAppLabels by viewModel.showAppLabels.collectAsStateWithLifecycle()
+    val useNothingIconTheme by viewModel.useNothingIconTheme.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var isOptimizing by remember { mutableStateOf(false) }
     var optProgress by remember { mutableStateOf(0f) }
@@ -1335,13 +1507,70 @@ fun SettingsAppScreen(viewModel: OSViewModel) {
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         WallpaperChip("Aurora Sky", wallpaper == WallpaperType.AURORA) { viewModel.setWallpaper(WallpaperType.AURORA) }
                         WallpaperChip("Nebula Space", wallpaper == WallpaperType.SPACE) { viewModel.setWallpaper(WallpaperType.SPACE) }
                         WallpaperChip("Emerald Field", wallpaper == WallpaperType.EMERALD) { viewModel.setWallpaper(WallpaperType.EMERALD) }
                         WallpaperChip("Dark Violet", wallpaper == WallpaperType.NEON) { viewModel.setWallpaper(WallpaperType.NEON) }
+                        WallpaperChip("Local Photo", wallpaper == WallpaperType.LOCAL) { viewModel.setWallpaper(WallpaperType.LOCAL) }
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF161824)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text("Launcher Customization", color = Color(0xFF00FFCC), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Show Icon Names", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Text("When disabled, icons grow larger", color = Color.Gray, fontSize = 10.sp)
+                        }
+                        Switch(
+                            checked = showAppLabels,
+                            onCheckedChange = { viewModel.setAppLabels(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFF00FFCC),
+                                checkedTrackColor = Color(0xFF00FFCC).copy(alpha = 0.3f)
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Divider(color = Color.White.copy(0.08f))
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Monochromatic Icons", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Apply modern dark vector icons shell", color = Color.Gray, fontSize = 10.sp)
+                        }
+                        Switch(
+                            checked = useNothingIconTheme,
+                            onCheckedChange = { viewModel.setNothingIconTheme(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFF00FFCC),
+                                checkedTrackColor = Color(0xFF00FFCC).copy(alpha = 0.3f)
+                            )
+                        )
                     }
                 }
             }
@@ -1415,9 +1644,9 @@ fun SettingsAppScreen(viewModel: OSViewModel) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Text("System Hardware Information", color = Color.LightGray, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text("Model Name: Orion Pro Simulated Hardware", color = Color.White, fontSize = 10.sp)
+                    Text("Model Name: Flux Alpha Simulated Hardware", color = Color.White, fontSize = 10.sp)
                     Text("Virtual Processor: ARM-Cortex Quantum Core", color = Color.White, fontSize = 10.sp)
-                    Text("Operating System: SimOS v5.2 (Unix Build)", color = Color.White, fontSize = 10.sp)
+                    Text("Operating System: FluxOS v5.2 (Unix Build)", color = Color.White, fontSize = 10.sp)
                 }
             }
         }
@@ -2034,6 +2263,17 @@ fun GalleryAppScreen(viewModel: OSViewModel) {
 
                         Spacer(modifier = Modifier.height(10.dp))
                         Button(
+                            onClick = {
+                                viewModel.setCustomLocalWallpaper(photo.wallGradient)
+                                selectedPhoto = null
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FFCC)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Set as Wallpaper", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Button(
                             onClick = { selectedPhoto = null },
                             colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.08f)),
                             modifier = Modifier.fillMaxWidth()
@@ -2066,7 +2306,7 @@ fun TerminalAppScreen(viewModel: OSViewModel) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("OrionShell v2.0", color = themeColor, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+            Text("FluxShell v2.0", color = themeColor, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
             Box(
                 modifier = Modifier
                     .size(width = 46.dp, height = 20.dp)
@@ -2254,13 +2494,13 @@ fun FileExplorerAppScreen(viewModel: OSViewModel) {
                         FileRowItem("goals_for_2026.txt", Icons.Default.Description, "420 B") {
                             openedTextFileContent = Pair(
                                 "goals_for_2026.txt",
-                                "AURAOS WORKPLAN 2026:\n- Deliver pure gesture navigation on virtual frames.\n- Implement spring based scaling window mechanics.\n- Provide rich functional applications."
+                                "FLUXOS WORKPLAN 2026:\n- Deliver pure gesture navigation on virtual frames.\n- Implement spring based scaling window mechanics.\n- Provide rich functional applications."
                             )
                         }
                         FileRowItem("secret_command_codes.txt", Icons.Default.Description, "120 B") {
                             openedTextFileContent = Pair(
                                 "secret_command_codes.txt",
-                                "SECRET CODES:\n- Launch OrionShell terminal and input neofetch command for ASCII outputs."
+                                "SECRET CODES:\n- Launch FluxShell terminal and input neofetch command for ASCII outputs."
                             )
                         }
                     }
@@ -2278,7 +2518,7 @@ fun FileExplorerAppScreen(viewModel: OSViewModel) {
                         FileRowItem("hardware_manifest.json", Icons.Default.Code, "1.8 KB") {
                             openedTextFileContent = Pair(
                                 "hardware_manifest.json",
-                                "{\n  \"device\": \"Orion Alpha\",\n  \"ram_gb\": 16,\n  \"core_count\": 8,\n  \"storage_gb\": 512,\n  \"screen\": \"AMOLED 90Hz\"\n}"
+                                "{\n  \"device\": \"Flux Alpha\",\n  \"ram_gb\": 16,\n  \"core_count\": 8,\n  \"storage_gb\": 512,\n  \"screen\": \"AMOLED 90Hz\"\n}"
                             )
                         }
                     }
@@ -2346,7 +2586,7 @@ fun WebSimAppScreen(viewModel: OSViewModel) {
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             IconButton(
-                onClick = { viewModel.setBrowserUrl("aura://search") },
+                onClick = { viewModel.setBrowserUrl("flux://search") },
                 modifier = Modifier.size(28.dp)
             ) {
                 Icon(imageVector = Icons.Default.ArrowBack, contentDescription = null, tint = Color.LightGray, modifier = Modifier.size(16.dp))
@@ -2388,14 +2628,14 @@ fun WebSimAppScreen(viewModel: OSViewModel) {
                 .padding(8.dp)
         ) {
             when {
-                browserUrl == "aura://search" -> {
+                browserUrl == "flux://search" -> {
                     Column(
                         modifier = Modifier.fillMaxSize(),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Text("AURA SEARCH", color = Color(0xFF00FFCC), fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                        Text("The virtual portal of Orion networks.", color = Color.LightGray, fontSize = 10.sp)
+                        Text("FLUX SEARCH", color = Color(0xFF00FFCC), fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                        Text("The virtual portal of Flux networks.", color = Color.LightGray, fontSize = 10.sp)
 
                         Spacer(modifier = Modifier.height(20.dp))
 
@@ -2405,13 +2645,13 @@ fun WebSimAppScreen(viewModel: OSViewModel) {
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text("Recommended interactive sites:", color = Color.Gray, fontSize = 9.sp)
-                            WebShortcutRow("NeuraNews Tech Hub") { viewModel.setBrowserUrl("aura://neuranews") }
-                            WebShortcutRow("Pineapple Gadget Outlet") { viewModel.setBrowserUrl("aura://pineapple") }
-                            WebShortcutRow("GeminiSocial Workspace") { viewModel.setBrowserUrl("aura://social") }
+                            WebShortcutRow("NeuraNews Tech Hub") { viewModel.setBrowserUrl("flux://neuranews") }
+                            WebShortcutRow("Pineapple Gadget Outlet") { viewModel.setBrowserUrl("flux://pineapple") }
+                            WebShortcutRow("GeminiSocial Workspace") { viewModel.setBrowserUrl("flux://social") }
                         }
                     }
                 }
-                browserUrl == "aura://neuranews" -> {
+                browserUrl == "flux://neuranews" -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -2424,11 +2664,11 @@ fun WebSimAppScreen(viewModel: OSViewModel) {
                             NewsArticleCard("ASTEROID CAPTURED", "Tech developers captured gold mine asteroid orbits 1,000 miles from central base.")
                         }
                         item {
-                            NewsArticleCard("ROBO ATHLETE CUP WIN", "Orion metallic humanoids win soccer league matches in standard 4-0 score highlights.")
+                            NewsArticleCard("ROBO ATHLETE CUP WIN", "Flux metallic humanoids win soccer league matches in standard 4-0 score highlights.")
                         }
                     }
                 }
-                browserUrl == "aura://pineapple" -> {
+                browserUrl == "flux://pineapple" -> {
                     Column(
                         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -2462,7 +2702,7 @@ fun WebSimAppScreen(viewModel: OSViewModel) {
                         }
                     }
                 }
-                browserUrl == "aura://social" -> {
+                browserUrl == "flux://social" -> {
                     Column(modifier = Modifier.fillMaxSize()) {
                         Text("GeminiSocial Hub", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(8.dp))
@@ -2475,10 +2715,10 @@ fun WebSimAppScreen(viewModel: OSViewModel) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(modifier = Modifier.size(24.dp).background(Color(0xFF00FFCC), CircleShape))
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Developer Leon", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("Lead Architect", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Text("AuraOS operates so fluid, the smooth scale-up zoom loops are incredibly neat!", color = Color.LightGray, fontSize = 11.sp)
+                                Text("FluxOS operates so fluid, the smooth scale-up zoom loops are incredibly neat!", color = Color.LightGray, fontSize = 11.sp)
                                 Spacer(modifier = Modifier.height(8.dp))
 
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2498,12 +2738,12 @@ fun WebSimAppScreen(viewModel: OSViewModel) {
                 else -> { // Search results
                     val q = browserUrl.substringAfter("q=").replace("+", " ")
                     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Aura Search Results: '$q'", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text("Flux Search Results: '$q'", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         Card(
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF161824))
                         ) {
                             Column(modifier = Modifier.padding(10.dp)) {
-                                Text("AuraOS Simulator Review", color = Color(0xFF00FFCC), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { viewModel.setBrowserUrl("aura://social") })
+                                Text("FluxOS Simulator Review", color = Color(0xFF00FFCC), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { viewModel.setBrowserUrl("flux://social") })
                                 Text("Learn how gestures override keys inside these stateful frames...", color = Color.LightGray, fontSize = 10.sp)
                             }
                         }
@@ -2549,78 +2789,133 @@ fun NewsArticleCard(title: String, body: String) {
 @Composable
 fun PhoneAppScreen(viewModel: OSViewModel) {
     var dialDigits by remember { mutableStateOf("") }
+    var activeTab by remember { mutableStateOf("dialer") } // "dialer" or "recents"
 
     Column(
         modifier = Modifier.fillMaxSize().padding(14.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        Text("Dialer Communication", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-
-        Text(
-            dialDigits.ifEmpty { "Enter Number" },
-            color = if (dialDigits.isEmpty()) Color.DarkGray else Color.White,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1
-        )
-
-        // Numpad Column
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            val keys = listOf(
-                listOf("1", "2", "3"),
-                listOf("4", "5", "6"),
-                listOf("7", "8", "9"),
-                listOf("*", "0", "#")
-            )
-
-            for (row in keys) {
-                Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    for (key in row) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .background(Color.White.copy(0.04f), CircleShape)
-                                .border(0.5.dp, Color.LightGray.copy(0.2f), CircleShape)
-                                .clickable {
-                                    if (dialDigits.length < 11) dialDigits += key
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(key, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Row(
+                modifier = Modifier
+                    .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(20.dp))
+                    .padding(4.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .background(if (activeTab == "dialer") Color.White.copy(alpha = 0.1f) else Color.Transparent, RoundedCornerShape(16.dp))
+                        .clickable { activeTab = "dialer" }
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                ) {
+                    Text("Dialer", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+                Box(
+                    modifier = Modifier
+                        .background(if (activeTab == "recents") Color.White.copy(alpha = 0.1f) else Color.Transparent, RoundedCornerShape(16.dp))
+                        .clickable { activeTab = "recents" }
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                ) {
+                    Text("Recents", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(
-                onClick = {
-                    if (dialDigits.isNotEmpty()) {
-                        dialDigits = dialDigits.dropLast(1)
-                    }
-                },
-                modifier = Modifier.background(Color.White.copy(0.04f), CircleShape)
-            ) {
-                Icon(Icons.Default.Backspace, null, tint = Color.LightGray)
-            }
-
+        if (activeTab == "recents") {
             Box(
-                modifier = Modifier
-                    .size(width = 110.dp, height = 44.dp)
-                    .background(Color(0xFF00E676), RoundedCornerShape(22.dp))
-                    .clickable { dialDigits = "DIALING..." },
+                modifier = Modifier.weight(1f).fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Phone, null, tint = Color.White, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Call", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.Phone,
+                        contentDescription = null,
+                        tint = Color.LightGray.copy(alpha = 0.15f),
+                        modifier = Modifier.size(56.dp)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text("No recent calls", color = Color.LightGray, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text("Your call history is empty", color = Color.DarkGray, fontSize = 10.sp)
+                }
+            }
+            // Spacer at bottom to match height balance
+            Spacer(modifier = Modifier.height(44.dp))
+        } else {
+            Column(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Text(
+                    dialDigits.ifEmpty { "Enter Number" },
+                    color = if (dialDigits.isEmpty()) Color.DarkGray else Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+
+                // Numpad Column
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val keys = listOf(
+                        listOf("1", "2", "3"),
+                        listOf("4", "5", "6"),
+                        listOf("7", "8", "9"),
+                        listOf("*", "0", "#")
+                    )
+
+                    for (row in keys) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                            for (key in row) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .background(Color.White.copy(0.04f), CircleShape)
+                                        .border(0.5.dp, Color.LightGray.copy(0.2f), CircleShape)
+                                        .clickable {
+                                            if (dialDigits.length < 11) dialDigits += key
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(key, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = {
+                            if (dialDigits.isNotEmpty()) {
+                                dialDigits = dialDigits.dropLast(1)
+                            }
+                        },
+                        modifier = Modifier.background(Color.White.copy(0.04f), CircleShape)
+                    ) {
+                        Icon(Icons.Default.Backspace, null, tint = Color.LightGray)
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(width = 110.dp, height = 44.dp)
+                            .background(Color(0xFF00E676), RoundedCornerShape(22.dp))
+                            .clickable { dialDigits = "DIALING..." },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Phone, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Call", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
         }
@@ -2630,31 +2925,55 @@ fun PhoneAppScreen(viewModel: OSViewModel) {
 // 10. Messages Screen
 @Composable
 fun MessagesAppScreen(viewModel: OSViewModel) {
-    val messages = listOf(
-        Pair("Aura Core Team", "Welcome to SimOS version 5.2. Type matrix command inside OrionShell!"),
-        Pair("System Daemon", "Battery health optimal. 16 GB virtual cache functioning."),
-        Pair("Leon OS", "Did you check out details inside our documents folder yet?"),
-        Pair("Network Provider", "LTE subscription valid for orbital simulations.")
-    )
+    val messages = emptyList<Pair<String, String>>()
 
     Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
         Text("Conversations", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(14.dp))
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(messages) { msg ->
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF161824)),
-                    border = BorderStroke(0.5.dp, Color.White.copy(0.1f))
-                ) {
-                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(32.dp).background(Color(0xFF2979FF), CircleShape), contentAlignment = Alignment.Center) {
-                            Text(msg.first.take(1), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(msg.first, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            Text(msg.second, color = Color.LightGray, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (messages.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.Email,
+                        contentDescription = null,
+                        tint = Color.LightGray.copy(alpha = 0.15f),
+                        modifier = Modifier.size(56.dp)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "No messages",
+                        color = Color.LightGray,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Your inbox is completely empty",
+                        color = Color.DarkGray,
+                        fontSize = 10.sp
+                    )
+                }
+            }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(messages) { msg ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF161824)),
+                        border = BorderStroke(0.5.dp, Color.White.copy(0.1f))
+                    ) {
+                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(32.dp).background(Color(0xFF2979FF), CircleShape), contentAlignment = Alignment.Center) {
+                                Text(msg.first.take(1), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(msg.first, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text(msg.second, color = Color.LightGray, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
                         }
                     }
                 }
