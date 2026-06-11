@@ -17,30 +17,37 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: gradle
 
-    - name: Find Gradle and Build APK
+    # Устанавливаем Gradle глобально на сервер, так как в репозитории нет gradlew
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4
+
+    - name: Find Project and Build APK
       run: |
-        # Ищем, в какой папке лежит gradlew
-        GRADLEW_PATH=$(find . -name "gradlew" -print -quit)
+        # Ищем, где лежит файл build.gradle или build.gradle.kts
+        BUILD_FILE=$(find . -name "build.gradle*" -print -quit)
         
-        if [ -z "$GRADLEW_PATH" ]; then
-          echo "Ошибка: Файл gradlew вообще не найден в репозитории!"
+        if [ -z "$BUILD_FILE" ]; then
+          echo "Ошибка: Проект Android не найден (нет build.gradle)!"
           exit 1
         fi
         
-        # Получаем директорию, где лежит gradlew
-        SUB_DIR=$(dirname "$GRADLEW_PATH")
+        # Переходим в папку с проектом
+        SUB_DIR=$(dirname "$BUILD_FILE")
         echo "Проект найден в папке: $SUB_DIR"
-        
-        # Переходим туда, даем права и собираем
         cd "$SUB_DIR"
-        chmod +x gradlew
-        ./gradlew assembleDebug
         
-        # Переносим готовый APK в корень, чтобы шаг сохранения его нашел
+        # Запускаем сборку через глобальный gradle
+        gradle assembleDebug
+        
+        # Переносим готовый APK в корень для загрузки в артефакты
         mkdir -p $GITHUB_WORKSPACE/output_apk
-        cp $(find . -name "*.apk" -print -quit) $GITHUB_WORKSPACE/output_apk/app-debug.apk
+        APK_PATH=$(find . -name "*.apk" -print -quit)
+        if [ -z "$APK_PATH" ]; then
+          echo "Ошибка: APK не скомпилировался!"
+          exit 1
+        fi
+        cp "$APK_PATH" $GITHUB_WORKSPACE/output_apk/app-debug.apk
 
     - name: Upload Finished APK
       uses: actions/upload-artifact@v4
