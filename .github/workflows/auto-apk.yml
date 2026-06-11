@@ -18,11 +18,11 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # Фиксируем стабильную версию Gradle, которая дружит с AGP 9.1.1 и KSP
+    # Ставим ровно 9.3.1, чтобы удовлетворить AGP 9.1.1 и не сломать KSP
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4
       with:
-        gradle-version: 8.12
+        gradle-version: 9.3.1
 
     - name: Generate Debug Keystore and Build
       run: |
@@ -37,13 +37,13 @@ jobs:
         echo "Проект найден в папке: $SUB_DIR"
         cd "$SUB_DIR"
         
-        # Генерируем тестовый debug.keystore, чтобы сборщик не ругался на его отсутствие
+        # Генерируем тестовый debug.keystore, чтобы не было ошибок валидации
         keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
         
-        # Запускаем сборку приложения
+        # Запускаем компиляцию проекта
         gradle assembleDebug
         
-        # Создаем папку для артефакта и копируем готовый APK
+        # Переносим APK в папку артефактов
         mkdir -p $GITHUB_WORKSPACE/output_apk
         APK_PATH=$(find . -name "*.apk" -print -quit)
         if [ -z "$APK_PATH" ]; then
