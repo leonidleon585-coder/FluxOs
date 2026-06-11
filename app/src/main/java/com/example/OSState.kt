@@ -109,6 +109,16 @@ class OSViewModel : ViewModel() {
     private val _animationSpeedMs = MutableStateFlow(350)
     val animationSpeedMs: StateFlow<Int> = _animationSpeedMs.asStateFlow()
 
+    // Launcher Settings & Nothing OS Icon Style
+    private val _showAppLabels = MutableStateFlow(true)
+    val showAppLabels: StateFlow<Boolean> = _showAppLabels.asStateFlow()
+
+    private val _useNothingIconTheme = MutableStateFlow(true)
+    val useNothingIconTheme: StateFlow<Boolean> = _useNothingIconTheme.asStateFlow()
+
+    private val _isLauncherSettingsOpen = MutableStateFlow(false)
+    val isLauncherSettingsOpen: StateFlow<Boolean> = _isLauncherSettingsOpen.asStateFlow()
+
     // Virtual DB / Lists
     private val _notesList = MutableStateFlow<List<Note>>(emptyList())
     val notesList: StateFlow<List<Note>> = _notesList.asStateFlow()
@@ -227,6 +237,27 @@ class OSViewModel : ViewModel() {
         if (_isPowerOn.value && !_isScreenLocked.value) {
             _isQuickSettingsOpen.value = open
         }
+    }
+
+    // Launcher Settings actions
+    fun toggleAppLabels() {
+        _showAppLabels.value = !_showAppLabels.value
+    }
+
+    fun setAppLabels(visible: Boolean) {
+        _showAppLabels.value = visible
+    }
+
+    fun toggleNothingIconTheme() {
+        _useNothingIconTheme.value = !_useNothingIconTheme.value
+    }
+
+    fun setNothingIconTheme(enabled: Boolean) {
+        _useNothingIconTheme.value = enabled
+    }
+
+    fun setLauncherSettingsOpen(open: Boolean) {
+        _isLauncherSettingsOpen.value = open
     }
 
     fun toggleWifi() { _isWifiOn.value = !_isWifiOn.value }

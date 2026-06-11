@@ -8,6 +8,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -607,10 +608,20 @@ fun VirtualLockScreen(viewModel: OSViewModel) {
 @Composable
 fun VirtualDeskGrid(viewModel: OSViewModel, onLaunchApp: (AppId) -> Unit) {
     val animDurationMs by viewModel.animationSpeedMs.collectAsStateWithLifecycle()
+    val showAppLabels by viewModel.showAppLabels.collectAsStateWithLifecycle()
+    val useNothingIconTheme by viewModel.useNothingIconTheme.collectAsStateWithLifecycle()
+    val isLauncherSettingsOpen by viewModel.isLauncherSettingsOpen.collectAsStateWithLifecycle()
 
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onLongPress = {
+                        viewModel.setLauncherSettingsOpen(true)
+                    }
+                )
+            }
             .padding(top = 40.dp, bottom = 12.dp)
     ) {
         // Upper Digital Clock & dynamic Date Desk Widget
@@ -652,10 +663,10 @@ fun VirtualDeskGrid(viewModel: OSViewModel, onLaunchApp: (AppId) -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
-                    DeskIconItem(AppId.SETTINGS, "Settings", Icons.Default.Settings, Color(0xFF607D8B)) { onLaunchApp(AppId.SETTINGS) }
-                    DeskIconItem(AppId.FILES, "Files", Icons.Default.Folder, Color(0xFFFFB300)) { onLaunchApp(AppId.FILES) }
-                    DeskIconItem(AppId.NOTES, "QuickPad", Icons.Default.Edit, Color(0xFF5E35B1)) { onLaunchApp(AppId.NOTES) }
-                    DeskIconItem(AppId.MUSIC, "WavePlayer", Icons.Default.PlayArrow, Color(0xFFE91E63)) { onLaunchApp(AppId.MUSIC) }
+                    DeskIconItem(AppId.SETTINGS, "Settings", Icons.Default.Settings, Color(0xFF607D8B), useNothingIconTheme, showAppLabels) { onLaunchApp(AppId.SETTINGS) }
+                    DeskIconItem(AppId.FILES, "Files", Icons.Default.Folder, Color(0xFFFFB300), useNothingIconTheme, showAppLabels) { onLaunchApp(AppId.FILES) }
+                    DeskIconItem(AppId.NOTES, "QuickPad", Icons.Default.Edit, Color(0xFF5E35B1), useNothingIconTheme, showAppLabels) { onLaunchApp(AppId.NOTES) }
+                    DeskIconItem(AppId.MUSIC, "WavePlayer", Icons.Default.PlayArrow, Color(0xFFE91E63), useNothingIconTheme, showAppLabels) { onLaunchApp(AppId.MUSIC) }
                 }
 
                 // Row 2
@@ -663,10 +674,10 @@ fun VirtualDeskGrid(viewModel: OSViewModel, onLaunchApp: (AppId) -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
-                    DeskIconItem(AppId.CAMERA, "Aperture", Icons.Default.PhotoCamera, Color(0xFF00ACC1)) { onLaunchApp(AppId.CAMERA) }
-                    DeskIconItem(AppId.GALLERY, "PixelDeck", Icons.Default.PhotoLibrary, Color(0xFF43A047)) { onLaunchApp(AppId.GALLERY) }
-                    DeskIconItem(AppId.TERMINAL, "OrionShell", Icons.Default.Terminal, Color(0xFF2E7D32)) { onLaunchApp(AppId.TERMINAL) }
-                    DeskIconItem(AppId.BROWSER, "WebSim", Icons.Default.Language, Color(0xFF1E88E5)) { onLaunchApp(AppId.BROWSER) }
+                    DeskIconItem(AppId.CAMERA, "Aperture", Icons.Default.PhotoCamera, Color(0xFF00ACC1), useNothingIconTheme, showAppLabels) { onLaunchApp(AppId.CAMERA) }
+                    DeskIconItem(AppId.GALLERY, "PixelDeck", Icons.Default.PhotoLibrary, Color(0xFF43A047), useNothingIconTheme, showAppLabels) { onLaunchApp(AppId.GALLERY) }
+                    DeskIconItem(AppId.TERMINAL, "OrionShell", Icons.Default.Terminal, Color(0xFF2E7D32), useNothingIconTheme, showAppLabels) { onLaunchApp(AppId.TERMINAL) }
+                    DeskIconItem(AppId.BROWSER, "WebSim", Icons.Default.Language, Color(0xFF1E88E5), useNothingIconTheme, showAppLabels) { onLaunchApp(AppId.BROWSER) }
                 }
             }
         }
@@ -688,17 +699,150 @@ fun VirtualDeskGrid(viewModel: OSViewModel, onLaunchApp: (AppId) -> Unit) {
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                DockIconItem(AppId.PHONE, Icons.Default.Phone, Color(0xFF00E676)) { onLaunchApp(AppId.PHONE) }
-                DockIconItem(AppId.MESSAGES, Icons.Default.Email, Color(0xFF2979FF)) { onLaunchApp(AppId.MESSAGES) }
-                DockIconItem(AppId.BROWSER, Icons.Default.Language, Color(0xFF1E88E5)) { onLaunchApp(AppId.BROWSER) }
-                DockIconItem(AppId.CAMERA, Icons.Default.PhotoCamera, Color(0xFFFF3D00)) { onLaunchApp(AppId.CAMERA) }
+                DockIconItem(AppId.PHONE, Icons.Default.Phone, Color(0xFF00E676), useNothingIconTheme) { onLaunchApp(AppId.PHONE) }
+                DockIconItem(AppId.MESSAGES, Icons.Default.Email, Color(0xFF2979FF), useNothingIconTheme) { onLaunchApp(AppId.MESSAGES) }
+                DockIconItem(AppId.BROWSER, Icons.Default.Language, Color(0xFF1E88E5), useNothingIconTheme) { onLaunchApp(AppId.BROWSER) }
+                DockIconItem(AppId.CAMERA, Icons.Default.PhotoCamera, Color(0xFFFF3D00), useNothingIconTheme) { onLaunchApp(AppId.CAMERA) }
             }
         }
+    }
+
+    // Launcher Settings Dialog
+    if (isLauncherSettingsOpen) {
+        AlertDialog(
+            onDismissRequest = { viewModel.setLauncherSettingsOpen(false) },
+            containerColor = Color(0xFF15171F),
+            shape = RoundedCornerShape(24.dp),
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = null,
+                        tint = Color(0xFF00FFCC),
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Text(
+                        text = "Настройки лаунчера",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.padding(vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "Персонализация рабочего стола в стиле Nothing OS. Сделайте интерфейс лаконичным.",
+                        color = Color.LightGray,
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp
+                    )
+
+                    // Toggle App Labels
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.toggleAppLabels() }
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Подписи значков",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Показывать имена приложений",
+                                color = Color.Gray,
+                                fontSize = 11.sp
+                            )
+                        }
+                        Switch(
+                            checked = showAppLabels,
+                            onCheckedChange = { viewModel.setAppLabels(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFF12141C),
+                                checkedTrackColor = Color(0xFF00FFCC),
+                                uncheckedThumbColor = Color.LightGray,
+                                uncheckedTrackColor = Color.DarkGray
+                            )
+                        )
+                    }
+
+                    // Divider spacer
+                    Box(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.White.copy(alpha = 0.08f)))
+
+                    // Toggle Nothing OS theme pack
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.toggleNothingIconTheme() }
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Черно-белые значки (Nothing)",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Минималистичный монохромный стиль",
+                                color = Color.Gray,
+                                fontSize = 11.sp
+                            )
+                        }
+                        Switch(
+                            checked = useNothingIconTheme,
+                            onCheckedChange = { viewModel.setNothingIconTheme(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFF12141C),
+                                checkedTrackColor = Color(0xFF00FFCC),
+                                uncheckedThumbColor = Color.LightGray,
+                                uncheckedTrackColor = Color.DarkGray
+                            )
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.setLauncherSettingsOpen(false) },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FFCC)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Готово", color = Color(0xFF12141C), fontWeight = FontWeight.Bold)
+                }
+            }
+        )
     }
 }
 
 @Composable
-fun DeskIconItem(id: AppId, title: String, icon: ImageVector, themeColor: Color, onClick: () -> Unit) {
+fun DeskIconItem(
+    id: AppId,
+    title: String,
+    icon: ImageVector,
+    themeColor: Color,
+    useNothingTheme: Boolean,
+    showLabels: Boolean,
+    onClick: () -> Unit
+) {
+    val iconShape = RoundedCornerShape(14.dp) // Squircle - Rounded Square but not sharp corners
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -706,42 +850,70 @@ fun DeskIconItem(id: AppId, title: String, icon: ImageVector, themeColor: Color,
             .clickable(onClick = onClick)
             .testTag("app_${trimmed(id)}")
     ) {
+        val backgroundBrushOrColor = remember(useNothingTheme, themeColor) {
+            if (useNothingTheme) {
+                Brush.verticalGradient(listOf(Color(0xFF1D1F24), Color(0xFF16181C)))
+            } else {
+                Brush.verticalGradient(listOf(themeColor, themeColor.copy(alpha = 0.65f)))
+            }
+        }
+        val iconTint = if (useNothingTheme) Color.White else Color.White
+        val borderAlpha = if (useNothingTheme) 0.12f else 0.2f
+
         Box(
             modifier = Modifier
                 .size(48.dp)
-                .background(
-                    Brush.verticalGradient(listOf(themeColor, themeColor.copy(alpha = 0.65f))),
-                    CircleShape
-                )
-                .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape),
+                .background(backgroundBrushOrColor, iconShape)
+                .border(1.dp, Color.White.copy(alpha = borderAlpha), iconShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = Color.White,
+                tint = iconTint,
                 modifier = Modifier.size(22.dp)
             )
         }
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = title,
-            color = Color.White,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+
+        if (showLabels) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
 @Composable
-fun DockIconItem(id: AppId, icon: ImageVector, themeColor: Color, onClick: () -> Unit) {
+fun DockIconItem(
+    id: AppId,
+    icon: ImageVector,
+    themeColor: Color,
+    useNothingTheme: Boolean,
+    onClick: () -> Unit
+) {
+    val iconShape = RoundedCornerShape(14.dp) // Squircle - Rounded Square but not sharp corners
+
+    val backgroundBrushOrColor = remember(useNothingTheme, themeColor) {
+        if (useNothingTheme) {
+            Brush.verticalGradient(listOf(Color(0xFF1D1F24), Color(0xFF16181C)))
+        } else {
+            Brush.linearGradient(listOf(themeColor, themeColor.copy(alpha = 0.65f)))
+        }
+    }
+    val iconTint = if (useNothingTheme) Color.White else Color.White
+    val borderAlpha = if (useNothingTheme) 0.12f else 0.2f
+
     Box(
         modifier = Modifier
             .size(46.dp)
-            .background(Brush.linearGradient(listOf(themeColor, themeColor.copy(alpha = 0.65f))), CircleShape)
-            .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+            .background(backgroundBrushOrColor, iconShape)
+            .border(1.dp, Color.White.copy(alpha = borderAlpha), iconShape)
             .clickable(onClick = onClick)
             .testTag("dock_${trimmed(id)}"),
         contentAlignment = Alignment.Center
@@ -749,7 +921,7 @@ fun DockIconItem(id: AppId, icon: ImageVector, themeColor: Color, onClick: () ->
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = Color.White,
+            tint = iconTint,
             modifier = Modifier.size(20.dp)
         )
     }
