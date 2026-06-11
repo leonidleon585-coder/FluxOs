@@ -18,29 +18,32 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # Устанавливаем Gradle глобально на сервер, так как в репозитории нет gradlew
+    # Фиксируем стабильную версию Gradle, которая дружит с AGP 9.1.1 и KSP
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4
+      with:
+        gradle-version: 8.12
 
-    - name: Find Project and Build APK
+    - name: Generate Debug Keystore and Build
       run: |
-        # Ищем, где лежит файл build.gradle или build.gradle.kts
+        # Находим, где лежит build.gradle
         BUILD_FILE=$(find . -name "build.gradle*" -print -quit)
-        
         if [ -z "$BUILD_FILE" ]; then
-          echo "Ошибка: Проект Android не найден (нет build.gradle)!"
+          echo "Ошибка: Проект Android не найден!"
           exit 1
         fi
         
-        # Переходим в папку с проектом
         SUB_DIR=$(dirname "$BUILD_FILE")
         echo "Проект найден в папке: $SUB_DIR"
         cd "$SUB_DIR"
         
-        # Запускаем сборку через глобальный gradle
+        # Генерируем тестовый debug.keystore, чтобы сборщик не ругался на его отсутствие
+        keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+        
+        # Запускаем сборку приложения
         gradle assembleDebug
         
-        # Переносим готовый APK в корень для загрузки в артефакты
+        # Создаем папку для артефакта и копируем готовый APK
         mkdir -p $GITHUB_WORKSPACE/output_apk
         APK_PATH=$(find . -name "*.apk" -print -quit)
         if [ -z "$APK_PATH" ]; then
