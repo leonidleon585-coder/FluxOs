@@ -23,6 +23,8 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -74,33 +76,48 @@ class MainActivity : ComponentActivity() {
 }
 
 // Global utility for offset mapping
-fun getIconCenter(app: AppId, widthDp: Dp, heightDp: Dp): DpOffset {
-    val col = when (app) {
-        AppId.SETTINGS, AppId.CAMERA, AppId.PHONE -> 0
-        AppId.FILES, AppId.GALLERY, AppId.MESSAGES -> 1
-        AppId.NOTES, AppId.TERMINAL -> 2
-        AppId.MUSIC, AppId.BROWSER -> 3
+fun getIconCenter(app: AppId, fromDock: Boolean, widthDp: Dp, heightDp: Dp): DpOffset {
+    if (fromDock) {
+        val col = when (app) {
+            AppId.PHONE -> 0
+            AppId.MESSAGES -> 1
+            AppId.BROWSER -> 2
+            AppId.CAMERA -> 3
+            else -> 0
+        }
+        val xFraction = when (col) {
+            0 -> 0.15f
+            1 -> 0.38f
+            2 -> 0.62f
+            else -> 0.85f
+        }
+        val yFraction = 0.88f // Dock level
+        return DpOffset(widthDp * xFraction, heightDp * yFraction)
+    } else {
+        val col = when (app) {
+            AppId.SETTINGS, AppId.CAMERA -> 0
+            AppId.FILES, AppId.GALLERY -> 1
+            AppId.NOTES, AppId.TERMINAL -> 2
+            AppId.MUSIC, AppId.BROWSER -> 3
+            else -> 0
+        }
+        val row = when (app) {
+            AppId.SETTINGS, AppId.FILES, AppId.NOTES, AppId.MUSIC -> 0
+            AppId.CAMERA, AppId.GALLERY, AppId.TERMINAL, AppId.BROWSER -> 1
+            else -> 0
+        }
+        val xFraction = when (col) {
+            0 -> 0.15f
+            1 -> 0.38f
+            2 -> 0.62f
+            else -> 0.85f
+        }
+        val yFraction = when (row) {
+            0 -> 0.22f
+            else -> 0.40f
+        }
+        return DpOffset(widthDp * xFraction, heightDp * yFraction)
     }
-    val row = when (app) {
-        AppId.SETTINGS, AppId.FILES, AppId.NOTES, AppId.MUSIC -> 0
-        AppId.CAMERA, AppId.GALLERY, AppId.TERMINAL, AppId.BROWSER -> 1
-        else -> 2 // Dock level (PHONE, MESSAGES etc.)
-    }
-
-    val xFraction = when (col) {
-        0 -> 0.15f
-        1 -> 0.38f
-        2 -> 0.62f
-        else -> 0.85f
-    }
-
-    val yFraction = when (row) {
-        0 -> 0.22f
-        1 -> 0.40f
-        else -> 0.88f // Dock
-    }
-
-    return DpOffset(widthDp * xFraction, heightDp * yFraction)
 }
 
 fun lerpDp(start: Dp, stop: Dp, fraction: Float): Dp {
@@ -490,6 +507,47 @@ fun PhoneScreenContent(viewModel: OSViewModel) {
     // Parallel app launching/closing window maps
     val activeWindows = remember { mutableStateMapOf<AppId, Animatable<Float, AnimationVector1D>>() }
     val scope = rememberCoroutineScope()
+    
+    var rootCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    val appIconCenters = remember { mutableStateMapOf<String, DpOffset>() }
+    val localDensity = LocalDensity.current
+
+    val onIconPositioned = { app: AppId, fromDock: Boolean, coords: LayoutCoordinates ->
+        if (activeApp == null) {
+            rootCoordinates?.let { root ->
+                if (coords.isAttached && root.isAttached) {
+                    val positionInRoot = root.localPositionOf(coords, Offset(coords.size.width / 2f, coords.size.height / 2f))
+                    val offsetDp = DpOffset(
+                        x = with(localDensity) { positionInRoot.x.toDp() },
+                        y = with(localDensity) { positionInRoot.y.toDp() }
+                    )
+                    appIconCenters[if (fromDock) "dock_${app}" else "desk_${app}"] = offsetDp
+                }
+            }
+        }
+    }
+    
+    val isSwipingApp by viewModel.isSwipingApp.collectAsStateWithLifecycle()
+    val appSwipeProgress by viewModel.appSwipeProgress.collectAsStateWithLifecycle()
+    val appSwipeDragY by viewModel.appSwipeDragY.collectAsStateWithLifecycle()
+    val appOpenedFromDockMap by viewModel.appOpenedFromDockMap.collectAsStateWithLifecycle()
+
+    // Elastic snap-back LaunchedEffect for interrupted home swipes
+    LaunchedEffect(isSwipingApp) {
+        if (!isSwipingApp && activeApp != null) {
+            val animatable = activeWindows[activeApp!!]
+            if (animatable != null && animatable.value != 1f) {
+                animatable.snapTo((1f - appSwipeProgress).coerceIn(0f, 1f))
+                animatable.animateTo(
+                    targetValue = 1f,
+                    animationSpec = spring(
+                        dampingRatio = 0.65f, // Elastic recovery rebound
+                        stiffness = 260f
+                    )
+                )
+            }
+        }
+    }
 
     LaunchedEffect(activeApp) {
         if (activeApp != null) {
@@ -502,8 +560,8 @@ fun PhoneScreenContent(viewModel: OSViewModel) {
                 activeWindows[opened]?.animateTo(
                     targetValue = 1f,
                     animationSpec = spring(
-                        dampingRatio = 0.72f, // Bouncy and fluid like HarmonyOS
-                        stiffness = 320f
+                        dampingRatio = 0.76f, // Snappy & fluid like flagship HarmonyOS/HyperOS
+                        stiffness = 450f
                     )
                 )
             }
@@ -518,7 +576,7 @@ fun PhoneScreenContent(viewModel: OSViewModel) {
                                 stiffness = 350f
                             )
                         )
-                        if (animatable.value == 0f && activeApp != app) {
+                        if (activeApp != app) {
                             activeWindows.remove(app)
                         }
                     }
@@ -529,19 +587,25 @@ fun PhoneScreenContent(viewModel: OSViewModel) {
             activeWindows.forEach { (app, animatable) ->
                 if (animatable.targetValue > 0f) {
                     launch {
+                        if (isSwipingApp) {
+                            animatable.snapTo((1f - appSwipeProgress).coerceIn(0f, 1f))
+                        }
                         animatable.animateTo(
                             targetValue = 0f,
                             animationSpec = spring(
-                                dampingRatio = 0.8f,
-                                stiffness = 320f
+                                dampingRatio = 0.82f, // Luxury deceleration decrescendo
+                                stiffness = 420f
                             )
                         )
-                        if (animatable.value == 0f && activeApp != app) {
+                        if (activeApp != app) {
                             activeWindows.remove(app)
                         }
                     }
                 }
             }
+            // Clear interactive flags
+            viewModel.setSwipingApp(false)
+            viewModel.updateAppSwipeProgress(0f)
         }
     }
 
@@ -580,6 +644,7 @@ fun PhoneScreenContent(viewModel: OSViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .background(wallpaperBrush)
+            .onGloballyPositioned { rootCoordinates = it }
     ) {
         val wDp = maxWidth
         val hDp = maxHeight
@@ -653,31 +718,76 @@ fun PhoneScreenContent(viewModel: OSViewModel) {
 
         // 1. Desktop layer (scales up and fades in during unlock transition)
         if (unlockProgress > 0.01f) {
+            val maxAnimProgress = if (activeApp != null) {
+                activeWindows[activeApp]?.value ?: 0f
+            } else 0f
+            val baseDeskScale = if (isSwipingApp) {
+                0.90f + (0.10f * appSwipeProgress)
+            } else {
+                1.0f - (0.10f * maxAnimProgress)
+            }
+            val finalDeskScale = (0.88f + (0.12f * unlockProgress)) * baseDeskScale
+
+            val animatingAppsProgress = activeWindows.mapValues { (app, animatable) ->
+                if (app == activeApp && isSwipingApp) {
+                    (1f - appSwipeProgress).coerceIn(0f, 1f)
+                } else {
+                    animatable.value
+                }
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .scale(0.88f + (0.12f * unlockProgress))
+                    .scale(finalDeskScale)
                     .alpha(unlockProgress)
             ) {
-                VirtualDeskGrid(viewModel) { app ->
-                    viewModel.openApp(app)
+                VirtualDeskGrid(
+                    viewModel = viewModel,
+                    animatingAppsProgress = animatingAppsProgress,
+                    onIconPositioned = onIconPositioned
+                ) { app, fromDock ->
+                    if (!activeWindows.containsKey(app)) {
+                        activeWindows[app] = Animatable(0f)
+                    }
+                    viewModel.openApp(app, fromDock)
                 }
             }
         }
 
         // 2. Parallel Active App Scaling Windows (looping over concurrently animating instances)
         activeWindows.forEach { (app, animatable) ->
-            val progress = animatable.value
+            val progress = if (app == activeApp && isSwipingApp) {
+                (1f - appSwipeProgress).coerceIn(0f, 1f)
+            } else {
+                animatable.value
+            }
             if (progress > 0.002f) {
-                // Map coordinates
-                val iconCenter = getIconCenter(app, wDp, hDp)
+                // Map coordinates using the specific dock/desktop launch origin
+                val fromDock = appOpenedFromDockMap[app] ?: false
+                val key = if (fromDock) "dock_${app}" else "desk_${app}"
+                val iconCenter = appIconCenters[key] ?: getIconCenter(app, fromDock, wDp, hDp)
+
+                val swipeDragY = if (app == activeApp && isSwipingApp) {
+                    with(LocalDensity.current) { appSwipeDragY.toDp() }
+                } else {
+                    0.dp
+                }
 
                 val curWidth = lerpDp(54.dp, wDp, progress)
                 val curHeight = lerpDp(54.dp, hDp, progress)
                 val curX = lerpDp(iconCenter.x, wDp / 2f, progress)
-                val curY = lerpDp(iconCenter.y, hDp / 2f, progress)
+                val curY = lerpDp(iconCenter.y, hDp / 2f, progress) + swipeDragY
                 val curRadius = lerpDp(16.dp, 36.dp, progress)
                 val curAlpha = lerpFloat(0f, 1f, (progress * 3f).coerceAtMost(1f))
+
+                // Modern 3D perspective pitch tilt and scaling for depth and fluid weight
+                val pitchTilt = if (isSwipingApp && app == activeApp) {
+                    -14f * appSwipeProgress
+                } else {
+                    lerpFloat(12f, 0f, progress)
+                }
+                val appScale = 0.95f + (0.05f * progress)
 
                 Box(
                     modifier = Modifier
@@ -686,6 +796,11 @@ fun PhoneScreenContent(viewModel: OSViewModel) {
                             y = curY - (curHeight / 2f)
                         )
                         .size(width = curWidth, height = curHeight)
+                        .graphicsLayer {
+                            rotationX = pitchTilt
+                            scaleX = appScale
+                            scaleY = appScale
+                        }
                         .clip(RoundedCornerShape(curRadius))
                         .alpha(curAlpha)
                         .background(Color(0xFF12141C))
@@ -713,6 +828,7 @@ fun PhoneScreenContent(viewModel: OSViewModel) {
                 modifier = Modifier
                     .fillMaxSize()
                     .offset(y = -hDp * unlockProgress)
+                    .scale(1.0f - (0.06f * unlockProgress))
                     .alpha(1f - unlockProgress)
             ) {
                 VirtualLockScreen(viewModel)
@@ -868,11 +984,37 @@ fun VirtualLockScreen(viewModel: OSViewModel) {
 }
 
 @Composable
-fun VirtualDeskGrid(viewModel: OSViewModel, onLaunchApp: (AppId) -> Unit) {
+fun VirtualDeskGrid(
+    viewModel: OSViewModel,
+    animatingAppsProgress: Map<AppId, Float>,
+    onIconPositioned: (AppId, Boolean, LayoutCoordinates) -> Unit,
+    onLaunchApp: (AppId, Boolean) -> Unit
+) {
     val animDurationMs by viewModel.animationSpeedMs.collectAsStateWithLifecycle()
     val showAppLabels by viewModel.showAppLabels.collectAsStateWithLifecycle()
     val useNothingIconTheme by viewModel.useNothingIconTheme.collectAsStateWithLifecycle()
     val isLauncherSettingsOpen by viewModel.isLauncherSettingsOpen.collectAsStateWithLifecycle()
+    val appOpenedFromDockMap by viewModel.appOpenedFromDockMap.collectAsStateWithLifecycle()
+
+    val getDeskIconAlpha = { app: AppId ->
+        val progress = animatingAppsProgress[app]
+        val openedFromDock = appOpenedFromDockMap[app] ?: false
+        if (progress != null && !openedFromDock) {
+            if (progress >= 1f) 0f else (1f - (progress / 0.15f)).coerceIn(0f, 1f)
+        } else {
+            1f
+        }
+    }
+
+    val getDockIconAlpha = { app: AppId ->
+        val progress = animatingAppsProgress[app]
+        val openedFromDock = appOpenedFromDockMap[app] ?: false
+        if (progress != null && openedFromDock) {
+            if (progress >= 1f) 0f else (1f - (progress / 0.15f)).coerceIn(0f, 1f)
+        } else {
+            1f
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -897,7 +1039,7 @@ fun VirtualDeskGrid(viewModel: OSViewModel, onLaunchApp: (AppId) -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 8.dp)
-                .clickable { viewModel.openApp(AppId.SETTINGS) },
+                .clickable { viewModel.openApp(AppId.SETTINGS, false) },
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
@@ -936,7 +1078,7 @@ fun VirtualDeskGrid(viewModel: OSViewModel, onLaunchApp: (AppId) -> Unit) {
                     modifier = Modifier.size(12.dp)
                 )
                 Text(
-                    "Преимущественно облачно • 19°C",
+                     "Преимущественно облачно • 19°C",
                     color = Color.White,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Normal
@@ -959,10 +1101,10 @@ fun VirtualDeskGrid(viewModel: OSViewModel, onLaunchApp: (AppId) -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
-                    DeskIconItem(AppId.SETTINGS, "Settings", Icons.Default.Settings, Color(0xFF607D8B), useNothingIconTheme, showAppLabels) { onLaunchApp(AppId.SETTINGS) }
-                    DeskIconItem(AppId.FILES, "Files", Icons.Default.Folder, Color(0xFFFFB300), useNothingIconTheme, showAppLabels) { onLaunchApp(AppId.FILES) }
-                    DeskIconItem(AppId.NOTES, "QuickPad", Icons.Default.Edit, Color(0xFF5E35B1), useNothingIconTheme, showAppLabels) { onLaunchApp(AppId.NOTES) }
-                    DeskIconItem(AppId.MUSIC, "WavePlayer", Icons.Default.PlayArrow, Color(0xFFE91E63), useNothingIconTheme, showAppLabels) { onLaunchApp(AppId.MUSIC) }
+                    DeskIconItem(AppId.SETTINGS, "Settings", Icons.Default.Settings, Color(0xFF607D8B), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.SETTINGS), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.SETTINGS, false, it) }) { onLaunchApp(AppId.SETTINGS, false) }
+                    DeskIconItem(AppId.FILES, "Files", Icons.Default.Folder, Color(0xFFFFB300), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.FILES), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.FILES, false, it) }) { onLaunchApp(AppId.FILES, false) }
+                    DeskIconItem(AppId.NOTES, "QuickPad", Icons.Default.Edit, Color(0xFF5E35B1), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.NOTES), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.NOTES, false, it) }) { onLaunchApp(AppId.NOTES, false) }
+                    DeskIconItem(AppId.MUSIC, "WavePlayer", Icons.Default.PlayArrow, Color(0xFFE91E63), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.MUSIC), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.MUSIC, false, it) }) { onLaunchApp(AppId.MUSIC, false) }
                 }
 
                 // Row 2
@@ -970,10 +1112,10 @@ fun VirtualDeskGrid(viewModel: OSViewModel, onLaunchApp: (AppId) -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
-                    DeskIconItem(AppId.CAMERA, "Aperture", Icons.Default.PhotoCamera, Color(0xFF00ACC1), useNothingIconTheme, showAppLabels) { onLaunchApp(AppId.CAMERA) }
-                    DeskIconItem(AppId.GALLERY, "PixelDeck", Icons.Default.PhotoLibrary, Color(0xFF43A047), useNothingIconTheme, showAppLabels) { onLaunchApp(AppId.GALLERY) }
-                    DeskIconItem(AppId.TERMINAL, "FluxShell", Icons.Default.Terminal, Color(0xFF2E7D32), useNothingIconTheme, showAppLabels) { onLaunchApp(AppId.TERMINAL) }
-                    DeskIconItem(AppId.BROWSER, "WebSim", Icons.Default.Language, Color(0xFF1E88E5), useNothingIconTheme, showAppLabels) { onLaunchApp(AppId.BROWSER) }
+                    DeskIconItem(AppId.CAMERA, "Aperture", Icons.Default.PhotoCamera, Color(0xFF00ACC1), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.CAMERA), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.CAMERA, false, it) }) { onLaunchApp(AppId.CAMERA, false) }
+                    DeskIconItem(AppId.GALLERY, "PixelDeck", Icons.Default.PhotoLibrary, Color(0xFF43A047), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.GALLERY), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.GALLERY, false, it) }) { onLaunchApp(AppId.GALLERY, false) }
+                    DeskIconItem(AppId.TERMINAL, "FluxShell", Icons.Default.Terminal, Color(0xFF2E7D32), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.TERMINAL), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.TERMINAL, false, it) }) { onLaunchApp(AppId.TERMINAL, false) }
+                    DeskIconItem(AppId.BROWSER, "WebSim", Icons.Default.Language, Color(0xFF1E88E5), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.BROWSER), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.BROWSER, false, it) }) { onLaunchApp(AppId.BROWSER, false) }
                 }
             }
         }
@@ -995,10 +1137,10 @@ fun VirtualDeskGrid(viewModel: OSViewModel, onLaunchApp: (AppId) -> Unit) {
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                DockIconItem(AppId.PHONE, Icons.Default.Phone, Color(0xFF00E676), useNothingIconTheme) { onLaunchApp(AppId.PHONE) }
-                DockIconItem(AppId.MESSAGES, Icons.Default.Email, Color(0xFF2979FF), useNothingIconTheme) { onLaunchApp(AppId.MESSAGES) }
-                DockIconItem(AppId.BROWSER, Icons.Default.Language, Color(0xFF1E88E5), useNothingIconTheme) { onLaunchApp(AppId.BROWSER) }
-                DockIconItem(AppId.CAMERA, Icons.Default.PhotoCamera, Color(0xFFFF3D00), useNothingIconTheme) { onLaunchApp(AppId.CAMERA) }
+                DockIconItem(AppId.PHONE, Icons.Default.Phone, Color(0xFF00E676), useNothingIconTheme, alpha = getDockIconAlpha(AppId.PHONE), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.PHONE, true, it) }) { onLaunchApp(AppId.PHONE, true) }
+                DockIconItem(AppId.MESSAGES, Icons.Default.Email, Color(0xFF2979FF), useNothingIconTheme, alpha = getDockIconAlpha(AppId.MESSAGES), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.MESSAGES, true, it) }) { onLaunchApp(AppId.MESSAGES, true) }
+                DockIconItem(AppId.BROWSER, Icons.Default.Language, Color(0xFF1E88E5), useNothingIconTheme, alpha = getDockIconAlpha(AppId.BROWSER), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.BROWSER, true, it) }) { onLaunchApp(AppId.BROWSER, true) }
+                DockIconItem(AppId.CAMERA, Icons.Default.PhotoCamera, Color(0xFFFF3D00), useNothingIconTheme, alpha = getDockIconAlpha(AppId.CAMERA), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.CAMERA, true, it) }) { onLaunchApp(AppId.CAMERA, true) }
             }
         }
     }
@@ -1097,14 +1239,17 @@ fun DeskIconItem(
     themeColor: Color,
     useNothingTheme: Boolean,
     showLabels: Boolean,
+    alpha: Float = 1f,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    val iconShape = RoundedCornerShape(16.dp) // Exquisite organic modern OS squircle
+    val iconShape = RoundedCornerShape(16.dp) // Exquisite organic modern OS squircleProxy
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
+        modifier = modifier
             .width(if (showLabels) 68.dp else 76.dp)
+            .alpha(alpha)
             .clickable(onClick = onClick)
             .testTag("app_${trimmed(id)}")
     ) {
@@ -1156,6 +1301,8 @@ fun DockIconItem(
     icon: ImageVector,
     themeColor: Color,
     useNothingTheme: Boolean,
+    alpha: Float = 1f,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     val iconShape = RoundedCornerShape(16.dp) // squircle alignment
@@ -1169,8 +1316,9 @@ fun DockIconItem(
     }
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(54.dp)
+            .alpha(alpha)
             .background(backgroundBrush, iconShape)
             .border(
                 width = 0.8.dp,
@@ -1441,38 +1589,70 @@ fun AppShell(app: AppId, viewModel: OSViewModel, contentPercent: Float) {
         }
 
         // Bottom Safe Navigation Pill (The user specified: Gesture navigation rather than 3 buttons)
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .height(22.dp)
-                .pointerInput(Unit) {
-                    var cumulativeDragY = 0f
-                    detectVerticalDragGestures(
-                        onDragStart = { cumulativeDragY = 0f },
-                        onDragEnd = {
-                            if (cumulativeDragY < -30f) { // Vertical swipe up gesture
-                                viewModel.closeActiveApp()
-                            }
-                        },
-                        onVerticalDrag = { change, dragAmount ->
-                            change.consume()
-                            cumulativeDragY += dragAmount
-                        }
-                    )
-                }
-                .clickable {
-                    // Back click serves as accessible companion fallback
-                    viewModel.closeActiveApp()
-                },
-            contentAlignment = Alignment.Center
+                .height(36.dp) // Generous grab area for intuitive touch ergonomics
         ) {
+            val screenHPx = with(LocalDensity.current) { 620.dp.toPx() }
+
             Box(
                 modifier = Modifier
-                    .width(100.dp)
-                    .height(4.dp)
-                    .background(Color.White.copy(alpha = 0.8f), CircleShape)
-            )
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        var cumulativeDragY = 0f
+                        detectVerticalDragGestures(
+                            onDragStart = { 
+                                cumulativeDragY = 0f 
+                                viewModel.setSwipingApp(true)
+                                viewModel.updateAppSwipeProgress(0f)
+                            },
+                            onDragEnd = {
+                                val progress = (kotlin.math.abs(cumulativeDragY) / screenHPx).coerceIn(0f, 1f)
+                                if (cumulativeDragY < -100f || progress > 0.20f) { // Swipe up triggers app collapse
+                                    viewModel.closeActiveApp()
+                                } else {
+                                    // Swipe-up canceled, animate active window back to full screen elastically
+                                    viewModel.setSwipingApp(false)
+                                    viewModel.updateAppSwipeProgress(0f, 0f)
+                                }
+                            },
+                            onVerticalDrag = { change, dragAmount ->
+                                change.consume()
+                                cumulativeDragY += dragAmount
+                                if (cumulativeDragY < 0) {
+                                    val progress = (kotlin.math.abs(cumulativeDragY) / screenHPx).coerceIn(0f, 1f)
+                                    viewModel.updateAppSwipeProgress(progress, cumulativeDragY)
+                                }
+                            }
+                        )
+                    }
+                    .clickable {
+                        // Accessible companion single tap close fallback with gorgeous spring physics
+                        viewModel.closeActiveApp()
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                val appSwipeProgress by viewModel.appSwipeProgress.collectAsStateWithLifecycle()
+                val isSwipingApp by viewModel.isSwipingApp.collectAsStateWithLifecycle()
+                
+                // Formula for dynamic gesture pill deformation when active or dragged
+                val pillWidth = lerpDp(100.dp, 60.dp, if (isSwipingApp) appSwipeProgress else 0f)
+                val pillHeight = lerpDp(4.dp, 6.dp, if (isSwipingApp) appSwipeProgress else 0f)
+                val pillColor = if (isSwipingApp) {
+                    Color(0xFF00FFCC) // Glows luxurious teal accent when active
+                } else {
+                    Color.White.copy(alpha = 0.8f)
+                }
+
+                Box(
+                    modifier = Modifier
+                        .width(pillWidth)
+                        .height(pillHeight)
+                        .background(pillColor, CircleShape)
+                )
+            }
         }
     }
 }

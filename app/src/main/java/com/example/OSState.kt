@@ -74,6 +74,18 @@ class OSViewModel : ViewModel() {
     private val _activeApp = MutableStateFlow<AppId?>(null)
     val activeApp: StateFlow<AppId?> = _activeApp.asStateFlow()
 
+    private val _appSwipeProgress = MutableStateFlow(0f)
+    val appSwipeProgress: StateFlow<Float> = _appSwipeProgress.asStateFlow()
+
+    private val _appSwipeDragY = MutableStateFlow(0f)
+    val appSwipeDragY: StateFlow<Float> = _appSwipeDragY.asStateFlow()
+
+    private val _isSwipingApp = MutableStateFlow(false)
+    val isSwipingApp: StateFlow<Boolean> = _isSwipingApp.asStateFlow()
+
+    private val _appOpenedFromDockMap = MutableStateFlow<Map<AppId, Boolean>>(emptyMap())
+    val appOpenedFromDockMap: StateFlow<Map<AppId, Boolean>> = _appOpenedFromDockMap.asStateFlow()
+
     // Dynamic control widgets
     private val _isQuickSettingsOpen = MutableStateFlow(false)
     val isQuickSettingsOpen: StateFlow<Boolean> = _isQuickSettingsOpen.asStateFlow()
@@ -220,8 +232,9 @@ class OSViewModel : ViewModel() {
         _isScreenLocked.value = true
     }
 
-    fun openApp(app: AppId) {
+    fun openApp(app: AppId, fromDock: Boolean = false) {
         if (!_isScreenLocked.value && _isPowerOn.value) {
+            _appOpenedFromDockMap.value = _appOpenedFromDockMap.value + (app to fromDock)
             _activeApp.value = app
             _isQuickSettingsOpen.value = false
         }
@@ -229,6 +242,15 @@ class OSViewModel : ViewModel() {
 
     fun closeActiveApp() {
         _activeApp.value = null
+    }
+
+    fun updateAppSwipeProgress(progress: Float, dragY: Float = 0f) {
+        _appSwipeProgress.value = progress.coerceIn(0f, 1f)
+        _appSwipeDragY.value = dragY
+    }
+
+    fun setSwipingApp(swiping: Boolean) {
+        _isSwipingApp.value = swiping
     }
 
     fun toggleQuickSettings() {
