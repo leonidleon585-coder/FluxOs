@@ -13,14 +13,15 @@ import java.util.Locale
 enum class AppId {
     SETTINGS,
     FILES,
-    NOTES,
     MUSIC,
     CAMERA,
     GALLERY,
-    TERMINAL,
-    BROWSER,
     PHONE,
-    MESSAGES
+    MESSAGES,
+    CALCULATOR,
+    CALENDAR,
+    CLOCK,
+    COMPASS
 }
 
 enum class WallpaperType {
@@ -125,6 +126,16 @@ class OSViewModel : ViewModel() {
     private val _animationSpeedMs = MutableStateFlow(350)
     val animationSpeedMs: StateFlow<Int> = _animationSpeedMs.asStateFlow()
 
+    // Highly sensitive spring physics customization
+    private val _animationType = MutableStateFlow("Spring iOS") // "Spring iOS", "Linear Fast", "Bouncy Elastic", "Slow Motion"
+    val animationType: StateFlow<String> = _animationType.asStateFlow()
+
+    private val _springDamping = MutableStateFlow(0.70f)
+    val springDamping: StateFlow<Float> = _springDamping.asStateFlow()
+
+    private val _springStiffness = MutableStateFlow(600f)
+    val springStiffness: StateFlow<Float> = _springStiffness.asStateFlow()
+
     // Launcher Settings & Nothing OS Icon Style
     private val _showAppLabels = MutableStateFlow(true)
     val showAppLabels: StateFlow<Boolean> = _showAppLabels.asStateFlow()
@@ -134,6 +145,12 @@ class OSViewModel : ViewModel() {
 
     private val _isLauncherSettingsOpen = MutableStateFlow(false)
     val isLauncherSettingsOpen: StateFlow<Boolean> = _isLauncherSettingsOpen.asStateFlow()
+
+    private val _contextMenuApp = MutableStateFlow<AppId?>(null)
+    val contextMenuApp: StateFlow<AppId?> = _contextMenuApp.asStateFlow()
+    
+    private val _contextMenuOffset = MutableStateFlow<androidx.compose.ui.geometry.Offset>(androidx.compose.ui.geometry.Offset.Zero)
+    val contextMenuOffset: StateFlow<androidx.compose.ui.geometry.Offset> = _contextMenuOffset.asStateFlow()
 
     // Virtual DB / Lists
     private val _notesList = MutableStateFlow<List<Note>>(emptyList())
@@ -286,6 +303,15 @@ class OSViewModel : ViewModel() {
         _isLauncherSettingsOpen.value = open
     }
 
+    fun openContextMenu(app: AppId, offset: androidx.compose.ui.geometry.Offset) {
+        _contextMenuApp.value = app
+        _contextMenuOffset.value = offset
+    }
+
+    fun closeContextMenu() {
+        _contextMenuApp.value = null
+    }
+
     fun toggleWifi() { _isWifiOn.value = !_isWifiOn.value }
     fun toggleBluetooth() { _isBluetoothOn.value = !_isBluetoothOn.value }
     fun toggleAirplaneMode() {
@@ -317,6 +343,36 @@ class OSViewModel : ViewModel() {
 
     fun setAnimationSpeed(ms: Int) {
         _animationSpeedMs.value = ms
+    }
+
+    fun setAnimationType(type: String) {
+        _animationType.value = type
+        when (type) {
+            "Spring iOS" -> {
+                _springDamping.value = 0.70f
+                _springStiffness.value = 600f
+            }
+            "Linear Fast" -> {
+                _springDamping.value = 1f
+                _springStiffness.value = 1200f
+            }
+            "Bouncy Elastic" -> {
+                _springDamping.value = 0.5f
+                _springStiffness.value = 250f
+            }
+            "Slow Motion" -> {
+                _springDamping.value = 0.85f
+                _springStiffness.value = 60f
+            }
+        }
+    }
+
+    fun setSpringDamping(v: Float) {
+        _springDamping.value = v.coerceIn(0.1f, 1.8f)
+    }
+
+    fun setSpringStiffness(v: Float) {
+        _springStiffness.value = v.coerceIn(10f, 1200f)
     }
 
     // Notes CRUD

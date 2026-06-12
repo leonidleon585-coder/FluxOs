@@ -28,6 +28,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
@@ -42,6 +43,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -59,16 +61,88 @@ import kotlinx.coroutines.launch
 import kotlin.random.Random
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        var systemCrashError by mutableStateOf<String?>(null)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        val originalHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { _, throwable ->
+            systemCrashError = throwable.stackTraceToString()
+        }
+
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    color = Color.Black
                 ) {
-                    OSSimulationWorkspace()
+                    val crash = systemCrashError
+                    if (crash != null) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFF0A0C10))
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF161822)),
+                                shape = RoundedCornerShape(24.dp),
+                                modifier = Modifier.fillMaxWidth().wrapContentHeight()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(24.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = null,
+                                        tint = Color(0xFFFF5252),
+                                        modifier = Modifier.size(44.dp)
+                                    )
+                                    Text(
+                                        "Системный сбой",
+                                        color = Color.White,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        "Произошло исключение. Вы можете скопировать лог ошибки:",
+                                        color = Color.LightGray,
+                                        fontSize = 12.sp,
+                                        textAlign = TextAlign.Center
+                                    )
+                                    val localClipboard = LocalClipboardManager.current
+                                    Button(
+                                        onClick = {
+                                            localClipboard.setText(androidx.compose.ui.text.AnnotatedString(crash))
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C2E3B)),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Text("Скопировать ошибку", color = Color.White, fontSize = 12.sp)
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Button(
+                                        onClick = {
+                                            systemCrashError = null
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FFCC)),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Text("Перезапустить систему", color = Color(0xFF0C0E14), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        OSSimulationWorkspace()
+                    }
                 }
             }
         }
@@ -81,29 +155,28 @@ fun getIconCenter(app: AppId, fromDock: Boolean, widthDp: Dp, heightDp: Dp): DpO
         val col = when (app) {
             AppId.PHONE -> 0
             AppId.MESSAGES -> 1
-            AppId.BROWSER -> 2
-            AppId.CAMERA -> 3
-            else -> 0
+            AppId.MUSIC -> 2
+            else -> 1
         }
         val xFraction = when (col) {
-            0 -> 0.15f
-            1 -> 0.38f
-            2 -> 0.62f
-            else -> 0.85f
+            0 -> 0.22f
+            1 -> 0.50f
+            2 -> 0.78f
+            else -> 0.50f
         }
         val yFraction = 0.88f // Dock level
         return DpOffset(widthDp * xFraction, heightDp * yFraction)
     } else {
         val col = when (app) {
-            AppId.SETTINGS, AppId.CAMERA -> 0
-            AppId.FILES, AppId.GALLERY -> 1
-            AppId.NOTES, AppId.TERMINAL -> 2
-            AppId.MUSIC, AppId.BROWSER -> 3
+            AppId.SETTINGS, AppId.CLOCK -> 0
+            AppId.FILES, AppId.COMPASS -> 1
+            AppId.CALCULATOR, AppId.GALLERY -> 2
+            AppId.CALENDAR, AppId.CAMERA -> 3
             else -> 0
         }
         val row = when (app) {
-            AppId.SETTINGS, AppId.FILES, AppId.NOTES, AppId.MUSIC -> 0
-            AppId.CAMERA, AppId.GALLERY, AppId.TERMINAL, AppId.BROWSER -> 1
+            AppId.SETTINGS, AppId.FILES, AppId.CALCULATOR, AppId.CALENDAR -> 0
+            AppId.CLOCK, AppId.COMPASS, AppId.GALLERY, AppId.CAMERA -> 1
             else -> 0
         }
         val xFraction = when (col) {
@@ -495,12 +568,15 @@ fun PhoneScreenContent(viewModel: OSViewModel) {
     val customLocalWallpaper by viewModel.customLocalWallpaper.collectAsStateWithLifecycle()
     val activeApp by viewModel.activeApp.collectAsStateWithLifecycle()
 
+    val springDamping by viewModel.springDamping.collectAsStateWithLifecycle()
+    val springStiffness by viewModel.springStiffness.collectAsStateWithLifecycle()
+
     // Smooth lock-screen sliding unlock progress (0f when locked, 1f when fully unlocked)
     val unlockProgress by animateFloatAsState(
         targetValue = if (isLockedState) 0f else 1f,
         animationSpec = spring(
-            dampingRatio = 0.85f, // Luxury elastic slide slide
-            stiffness = Spring.StiffnessLow
+            dampingRatio = springDamping * 0.9f, // Allow slightly more overshoot when unlocking
+            stiffness = springStiffness * 0.85f  // Keep smooth uncoil weight
         )
     )
 
@@ -541,8 +617,8 @@ fun PhoneScreenContent(viewModel: OSViewModel) {
                 animatable.animateTo(
                     targetValue = 1f,
                     animationSpec = spring(
-                        dampingRatio = 0.65f, // Elastic recovery rebound
-                        stiffness = 260f
+                        dampingRatio = springDamping,
+                        stiffness = springStiffness
                     )
                 )
             }
@@ -554,47 +630,52 @@ fun PhoneScreenContent(viewModel: OSViewModel) {
             val opened = activeApp!!
             if (!activeWindows.containsKey(opened)) {
                 activeWindows[opened] = Animatable(0f)
+            } else {
+                if (activeWindows[opened]?.value == 1f) {
+                    activeWindows[opened]?.snapTo(0f)
+                }
             }
-            // Launch parallel spring animations
-            launch {
+            // Launch parallel spring animations on the persistent coroutine scope!
+            scope.launch {
                 activeWindows[opened]?.animateTo(
                     targetValue = 1f,
                     animationSpec = spring(
-                        dampingRatio = 0.76f, // Snappy & fluid like flagship HarmonyOS/HyperOS
-                        stiffness = 450f
+                        dampingRatio = springDamping,
+                        stiffness = springStiffness
                     )
                 )
             }
-            // Concurrently close other windows in parallel
-            activeWindows.forEach { (app, animatable) ->
-                if (app != opened && animatable.targetValue > 0f) {
-                    launch {
-                        animatable.animateTo(
-                            targetValue = 0f,
-                            animationSpec = spring(
-                                dampingRatio = 0.8f,
-                                stiffness = 350f
+            // Concurrently close other windows in parallel on the persistent scope
+            activeWindows.keys.toList().forEach { app ->
+                if (app != opened) {
+                    val animatable = activeWindows[app]
+                    if (animatable != null && animatable.targetValue > 0f) {
+                        scope.launch {
+                            animatable.animateTo(
+                                targetValue = 0f,
+                                animationSpec = spring(
+                                    dampingRatio = springDamping,
+                                    stiffness = springStiffness
+                                )
                             )
-                        )
-                        if (activeApp != app) {
-                            activeWindows.remove(app)
+                            if (activeApp != app) {
+                                activeWindows.remove(app)
+                            }
                         }
                     }
                 }
             }
         } else {
             // Close all windows concurrently in parallel
-            activeWindows.forEach { (app, animatable) ->
-                if (animatable.targetValue > 0f) {
-                    launch {
-                        if (isSwipingApp) {
-                            animatable.snapTo((1f - appSwipeProgress).coerceIn(0f, 1f))
-                        }
+            activeWindows.keys.toList().forEach { app ->
+                val animatable = activeWindows[app]
+                if (animatable != null && animatable.targetValue > 0f) {
+                    scope.launch {
                         animatable.animateTo(
                             targetValue = 0f,
                             animationSpec = spring(
-                                dampingRatio = 0.82f, // Luxury deceleration decrescendo
-                                stiffness = 420f
+                                dampingRatio = springDamping,
+                                stiffness = springStiffness
                             )
                         )
                         if (activeApp != app) {
@@ -718,13 +799,14 @@ fun PhoneScreenContent(viewModel: OSViewModel) {
 
         // 1. Desktop layer (scales up and fades in during unlock transition)
         if (unlockProgress > 0.01f) {
-            val maxAnimProgress = if (activeApp != null) {
-                activeWindows[activeApp]?.value ?: 0f
+            val maxAnimProgress = if (activeWindows.isNotEmpty()) {
+                activeWindows.values.maxOf { it.value }
             } else 0f
+
             val baseDeskScale = if (isSwipingApp) {
-                0.90f + (0.10f * appSwipeProgress)
+                1.0f - (0.05f * (1f - appSwipeProgress))
             } else {
-                1.0f - (0.10f * maxAnimProgress)
+                1.0f - (0.05f * maxAnimProgress)
             }
             val finalDeskScale = (0.88f + (0.12f * unlockProgress)) * baseDeskScale
 
@@ -755,14 +837,15 @@ fun PhoneScreenContent(viewModel: OSViewModel) {
             }
         }
 
-        // 2. Parallel Active App Scaling Windows (looping over concurrently animating instances)
+        // 2. Parallel Active App Scaling Windows (looping over concurrently animating instances with GPU hardware transformations)
         activeWindows.forEach { (app, animatable) ->
             val progress = if (app == activeApp && isSwipingApp) {
                 (1f - appSwipeProgress).coerceIn(0f, 1f)
             } else {
                 animatable.value
             }
-            if (progress > 0.002f) {
+            if (progress > 0.001f || (isSwipingApp && app == activeApp)) {
+                val safeProgress = progress.coerceAtLeast(0.001f)
                 // Map coordinates using the specific dock/desktop launch origin
                 val fromDock = appOpenedFromDockMap[app] ?: false
                 val key = if (fromDock) "dock_${app}" else "desk_${app}"
@@ -774,39 +857,71 @@ fun PhoneScreenContent(viewModel: OSViewModel) {
                     0.dp
                 }
 
-                val curWidth = lerpDp(54.dp, wDp, progress)
-                val curHeight = lerpDp(54.dp, hDp, progress)
-                val curX = lerpDp(iconCenter.x, wDp / 2f, progress)
-                val curY = lerpDp(iconCenter.y, hDp / 2f, progress) + swipeDragY
-                val curRadius = lerpDp(16.dp, 36.dp, progress)
-                val curAlpha = lerpFloat(0f, 1f, (progress * 3f).coerceAtMost(1f))
-
-                // Modern 3D perspective pitch tilt and scaling for depth and fluid weight
+                // Modern 3D perspective pitch tilt for depth and fluid weight
                 val pitchTilt = if (isSwipingApp && app == activeApp) {
                     -14f * appSwipeProgress
                 } else {
-                    lerpFloat(12f, 0f, progress)
+                    lerpFloat(12f, 0f, safeProgress)
                 }
-                val appScale = 0.95f + (0.05f * progress)
+
+                // Smoothly fade in content over the first few frames
+                val curAlpha = (safeProgress * 12f).coerceIn(0f, 1f)
 
                 Box(
                     modifier = Modifier
-                        .offset(
-                            x = curX - (curWidth / 2f),
-                            y = curY - (curHeight / 2f)
-                        )
-                        .size(width = curWidth, height = curHeight)
+                        .fillMaxSize()
                         .graphicsLayer {
-                            rotationX = pitchTilt
-                            scaleX = appScale
-                            scaleY = appScale
+                            val wPx = size.width
+                            val hPx = size.height
+                            if (wPx == 0f || hPx == 0f) return@graphicsLayer
+
+                            val iconCenterXPx = iconCenter.x.toPx()
+                            val iconCenterYPx = iconCenter.y.toPx()
+
+                            // Base icon size is 54.dp
+                            val iconSizePx = 54.dp.toPx()
+
+                            // Calculate target scale values
+                            val scaleX0 = iconSizePx / wPx
+                            val scaleY0 = iconSizePx / hPx
+
+                            val targetScaleX = scaleX0 + (1f - scaleX0) * progress
+                            val targetScaleY = scaleY0 + (1f - scaleY0) * progress
+
+                            val targetCenterX = iconCenterXPx + (wPx / 2f - iconCenterXPx) * progress
+                            val targetCenterY = iconCenterYPx + (hPx / 2f - iconCenterYPx) * progress + swipeDragY.toPx()
+
+                            this.scaleX = targetScaleX
+                            this.scaleY = targetScaleY
+                            this.translationX = targetCenterX - (wPx / 2f)
+                            this.translationY = targetCenterY - (hPx / 2f)
+
+                            this.rotationX = pitchTilt
+                            this.alpha = curAlpha
+
+                            val maxRadius = 36.dp.toPx()
+                            val minRadius = 16.dp.toPx()
+                            val visualRadius = minRadius + (maxRadius - minRadius) * safeProgress
+
+                            this.clip = true
+                            this.shape = RoundedCornerShape(visualRadius / targetScaleX)
                         }
-                        .clip(RoundedCornerShape(curRadius))
-                        .alpha(curAlpha)
                         .background(Color(0xFF12141C))
                         .clickable(enabled = false) {}
                 ) {
-                    AppShell(app = app, viewModel = viewModel, contentPercent = progress)
+                    AppShell(
+                        app = app,
+                        viewModel = viewModel,
+                        contentPercent = safeProgress
+                    ) { releasedSwipeProgress ->
+                        val currentProgress = (1f - releasedSwipeProgress).coerceIn(0f, 1f)
+                        scope.launch {
+                            activeWindows[app]?.snapTo(currentProgress)
+                            viewModel.closeActiveApp() // activeApp becomes null, triggering target 0f spring
+                            viewModel.setSwipingApp(false) // won't trigger cancel-spring because activeApp is null
+                            viewModel.updateAppSwipeProgress(0f, 0f)
+                        }
+                    }
                 }
             }
         }
@@ -822,17 +937,35 @@ fun PhoneScreenContent(viewModel: OSViewModel) {
             }
         }
 
-        // 4. Lock Screen Overlay (slides vertically up and fades out cleanly upon unlock)
-        if (unlockProgress < 0.99f) {
+        // 4. Context Menu Overlay
+        val contextMenuApp by viewModel.contextMenuApp.collectAsStateWithLifecycle()
+        if (contextMenuApp != null) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .offset(y = -hDp * unlockProgress)
-                    .scale(1.0f - (0.06f * unlockProgress))
-                    .alpha(1f - unlockProgress)
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onTap = { viewModel.closeContextMenu() }
+                        )
+                    }
             ) {
-                VirtualLockScreen(viewModel)
+                ContextMenuPopup(viewModel, contextMenuApp!!)
             }
+        }
+
+        // 5. Lock Screen Overlay (slides vertically up and fades out cleanly upon unlock)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    translationY = (-size.height * unlockProgress)
+                    scaleX = 1.0f - (0.04f * unlockProgress)
+                    scaleY = 1.0f - (0.04f * unlockProgress)
+                    alpha = 1f - (unlockProgress * 1.5f).coerceIn(0f, 1f)
+                }
+        ) {
+            VirtualLockScreen(viewModel)
         }
     }
 }
@@ -843,6 +976,10 @@ fun lerp(start: Dp, stop: Dp, fraction: Float): Dp = start + (stop - start) * fr
 @Composable
 fun VirtualLockScreen(viewModel: OSViewModel) {
     var swipeOffsetY by remember { mutableStateOf(0f) }
+    val animatedSwipeOffset by animateFloatAsState(
+        targetValue = swipeOffsetY,
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = 400f)
+    )
     val density = LocalDensity.current
 
     Box(
@@ -860,13 +997,13 @@ fun VirtualLockScreen(viewModel: OSViewModel) {
                     },
                     onVerticalDrag = { change, dragAmount ->
                         change.consume()
-                        swipeOffsetY = (swipeOffsetY + dragAmount).coerceAtMost(0f)
+                        swipeOffsetY = (swipeOffsetY + dragAmount * 0.65f).coerceAtMost(0f)
                     }
                 )
             },
         contentAlignment = Alignment.Center
     ) {
-        val visualOffset = with(density) { swipeOffsetY.toDp() }
+        val visualOffset = with(density) { animatedSwipeOffset.toDp() }
 
         Column(
             modifier = Modifier
@@ -976,13 +1113,12 @@ fun VirtualLockScreen(viewModel: OSViewModel) {
                     modifier = Modifier
                         .width(110.dp)
                         .height(4.dp)
-                        .background(Color.White, CircleShape)
+                        .background(Color.White.copy(alpha = 0.4f), RoundedCornerShape(2.dp))
                 )
             }
         }
     }
 }
-
 @Composable
 fun VirtualDeskGrid(
     viewModel: OSViewModel,
@@ -995,25 +1131,22 @@ fun VirtualDeskGrid(
     val useNothingIconTheme by viewModel.useNothingIconTheme.collectAsStateWithLifecycle()
     val isLauncherSettingsOpen by viewModel.isLauncherSettingsOpen.collectAsStateWithLifecycle()
     val appOpenedFromDockMap by viewModel.appOpenedFromDockMap.collectAsStateWithLifecycle()
+    val activeApp by viewModel.activeApp.collectAsStateWithLifecycle()
 
     val getDeskIconAlpha = { app: AppId ->
-        val progress = animatingAppsProgress[app]
+        val isAnimating = animatingAppsProgress.containsKey(app)
         val openedFromDock = appOpenedFromDockMap[app] ?: false
-        if (progress != null && !openedFromDock) {
-            if (progress >= 1f) 0f else (1f - (progress / 0.15f)).coerceIn(0f, 1f)
-        } else {
-            1f
-        }
+        if (isAnimating && !openedFromDock) 0f
+        else if (activeApp == app && !openedFromDock) 0f
+        else 1f
     }
 
     val getDockIconAlpha = { app: AppId ->
-        val progress = animatingAppsProgress[app]
+        val isAnimating = animatingAppsProgress.containsKey(app)
         val openedFromDock = appOpenedFromDockMap[app] ?: false
-        if (progress != null && openedFromDock) {
-            if (progress >= 1f) 0f else (1f - (progress / 0.15f)).coerceIn(0f, 1f)
-        } else {
-            1f
-        }
+        if (isAnimating && openedFromDock) 0f
+        else if (activeApp == app && openedFromDock) 0f
+        else 1f
     }
 
     Box(
@@ -1034,77 +1167,25 @@ fun VirtualDeskGrid(
                 }
         )
 
-        // Upper Digital Clock & dynamic Date Desk Widget - Elegant vertical stack based on screenshot
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp)
-                .clickable { viewModel.openApp(AppId.SETTINGS, false) },
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                "00",
-                color = Color.White,
-                fontSize = 58.sp,
-                fontWeight = FontWeight.Light,
-                lineHeight = 52.sp,
-                letterSpacing = 1.sp
-            )
-            Text(
-                "26",
-                color = Color.White,
-                fontSize = 58.sp,
-                fontWeight = FontWeight.Light,
-                lineHeight = 52.sp,
-                letterSpacing = 1.sp
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                "6/12 пт",
-                color = Color.White,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Normal
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier.alpha(0.65f)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Cloud,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(12.dp)
-                )
-                Text(
-                     "Преимущественно облачно • 19°C",
-                    color = Color.White,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Normal
-                )
-            }
-        }
-
-        // Mid apps Grid (2 rows, 4 columns)
+        // Mid apps Grid (2 rows, 4 columns) - Repositioned cleanly for spacious aesthetic
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .align(Alignment.Center)
-                .padding(horizontal = 14.dp)
+                .align(Alignment.TopCenter)
+                .padding(top = 36.dp, start = 14.dp, end = 14.dp)
         ) {
             Column(
-                verticalArrangement = Arrangement.spacedBy(22.dp)
+                verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 // Row 1
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
-                    DeskIconItem(AppId.SETTINGS, "Settings", Icons.Default.Settings, Color(0xFF607D8B), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.SETTINGS), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.SETTINGS, false, it) }) { onLaunchApp(AppId.SETTINGS, false) }
-                    DeskIconItem(AppId.FILES, "Files", Icons.Default.Folder, Color(0xFFFFB300), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.FILES), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.FILES, false, it) }) { onLaunchApp(AppId.FILES, false) }
-                    DeskIconItem(AppId.NOTES, "QuickPad", Icons.Default.Edit, Color(0xFF5E35B1), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.NOTES), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.NOTES, false, it) }) { onLaunchApp(AppId.NOTES, false) }
-                    DeskIconItem(AppId.MUSIC, "WavePlayer", Icons.Default.PlayArrow, Color(0xFFE91E63), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.MUSIC), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.MUSIC, false, it) }) { onLaunchApp(AppId.MUSIC, false) }
+                    DeskIconItem(AppId.SETTINGS, "Settings", Icons.Default.Settings, Color(0xFF607D8B), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.SETTINGS), onPositioned = { onIconPositioned(AppId.SETTINGS, false, it) }, onClick = { onLaunchApp(AppId.SETTINGS, false) }, onLongClick = { viewModel.openContextMenu(AppId.SETTINGS, it) })
+                    DeskIconItem(AppId.FILES, "Files", Icons.Default.Folder, Color(0xFFFFB300), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.FILES), onPositioned = { onIconPositioned(AppId.FILES, false, it) }, onClick = { onLaunchApp(AppId.FILES, false) }, onLongClick = { viewModel.openContextMenu(AppId.FILES, it) })
+                    DeskIconItem(AppId.CALCULATOR, "Calculator", Icons.Default.Calculate, Color(0xFFFB9600), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.CALCULATOR), onPositioned = { onIconPositioned(AppId.CALCULATOR, false, it) }, onClick = { onLaunchApp(AppId.CALCULATOR, false) }, onLongClick = { viewModel.openContextMenu(AppId.CALCULATOR, it) })
+                    DeskIconItem(AppId.CALENDAR, "Calendar", Icons.Default.CalendarToday, Color(0xFFEA4335), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.CALENDAR), onPositioned = { onIconPositioned(AppId.CALENDAR, false, it) }, onClick = { onLaunchApp(AppId.CALENDAR, false) }, onLongClick = { viewModel.openContextMenu(AppId.CALENDAR, it) })
                 }
 
                 // Row 2
@@ -1112,24 +1193,24 @@ fun VirtualDeskGrid(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
-                    DeskIconItem(AppId.CAMERA, "Aperture", Icons.Default.PhotoCamera, Color(0xFF00ACC1), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.CAMERA), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.CAMERA, false, it) }) { onLaunchApp(AppId.CAMERA, false) }
-                    DeskIconItem(AppId.GALLERY, "PixelDeck", Icons.Default.PhotoLibrary, Color(0xFF43A047), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.GALLERY), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.GALLERY, false, it) }) { onLaunchApp(AppId.GALLERY, false) }
-                    DeskIconItem(AppId.TERMINAL, "FluxShell", Icons.Default.Terminal, Color(0xFF2E7D32), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.TERMINAL), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.TERMINAL, false, it) }) { onLaunchApp(AppId.TERMINAL, false) }
-                    DeskIconItem(AppId.BROWSER, "WebSim", Icons.Default.Language, Color(0xFF1E88E5), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.BROWSER), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.BROWSER, false, it) }) { onLaunchApp(AppId.BROWSER, false) }
+                    DeskIconItem(AppId.CLOCK, "Clock", Icons.Default.AccessTime, Color(0xFF1E88E5), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.CLOCK), onPositioned = { onIconPositioned(AppId.CLOCK, false, it) }, onClick = { onLaunchApp(AppId.CLOCK, false) }, onLongClick = { viewModel.openContextMenu(AppId.CLOCK, it) })
+                    DeskIconItem(AppId.COMPASS, "Compass", Icons.Default.Explore, Color(0xFF5856D6), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.COMPASS), onPositioned = { onIconPositioned(AppId.COMPASS, false, it) }, onClick = { onLaunchApp(AppId.COMPASS, false) }, onLongClick = { viewModel.openContextMenu(AppId.COMPASS, it) })
+                    DeskIconItem(AppId.GALLERY, "Gallery", Icons.Default.Image, Color(0xFF34C759), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.GALLERY), onPositioned = { onIconPositioned(AppId.GALLERY, false, it) }, onClick = { onLaunchApp(AppId.GALLERY, false) }, onLongClick = { viewModel.openContextMenu(AppId.GALLERY, it) })
+                    DeskIconItem(AppId.CAMERA, "Camera", Icons.Default.PhotoCamera, Color(0xFF555555), useNothingIconTheme, showAppLabels, alpha = getDeskIconAlpha(AppId.CAMERA), onPositioned = { onIconPositioned(AppId.CAMERA, false, it) }, onClick = { onLaunchApp(AppId.CAMERA, false) }, onLongClick = { viewModel.openContextMenu(AppId.CAMERA, it) })
                 }
             }
         }
 
-        // Bottom Dock Shelf containing phone, messages, browser, camera shortcuts
+        // Bottom Floating Dock with Phone, SMS, and Music
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(start = 12.dp, end = 12.dp, bottom = 24.dp)
+                .padding(start = 14.dp, end = 14.dp, bottom = 16.dp)
                 .fillMaxWidth()
-                .height(84.dp)
-                .background(Color.White.copy(alpha = 0.09f), RoundedCornerShape(26.dp))
+                .height(96.dp)
+                .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(26.dp))
                 .border(0.5.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(26.dp))
-                .padding(horizontal = 12.dp),
+                .padding(horizontal = 14.dp),
             contentAlignment = Alignment.Center
         ) {
             Row(
@@ -1137,10 +1218,9 @@ fun VirtualDeskGrid(
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                DockIconItem(AppId.PHONE, Icons.Default.Phone, Color(0xFF00E676), useNothingIconTheme, alpha = getDockIconAlpha(AppId.PHONE), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.PHONE, true, it) }) { onLaunchApp(AppId.PHONE, true) }
-                DockIconItem(AppId.MESSAGES, Icons.Default.Email, Color(0xFF2979FF), useNothingIconTheme, alpha = getDockIconAlpha(AppId.MESSAGES), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.MESSAGES, true, it) }) { onLaunchApp(AppId.MESSAGES, true) }
-                DockIconItem(AppId.BROWSER, Icons.Default.Language, Color(0xFF1E88E5), useNothingIconTheme, alpha = getDockIconAlpha(AppId.BROWSER), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.BROWSER, true, it) }) { onLaunchApp(AppId.BROWSER, true) }
-                DockIconItem(AppId.CAMERA, Icons.Default.PhotoCamera, Color(0xFFFF3D00), useNothingIconTheme, alpha = getDockIconAlpha(AppId.CAMERA), modifier = Modifier.onGloballyPositioned { onIconPositioned(AppId.CAMERA, true, it) }) { onLaunchApp(AppId.CAMERA, true) }
+                DockIconItem(AppId.PHONE, Icons.Default.Phone, Color(0xFF34C759), useNothingIconTheme, showAppLabels, alpha = getDockIconAlpha(AppId.PHONE), onPositioned = { onIconPositioned(AppId.PHONE, true, it) }, onClick = { onLaunchApp(AppId.PHONE, true) }, onLongClick = { viewModel.openContextMenu(AppId.PHONE, it) })
+                DockIconItem(AppId.MESSAGES, Icons.Default.Sms, Color(0xFF007AFF), useNothingIconTheme, showAppLabels, alpha = getDockIconAlpha(AppId.MESSAGES), onPositioned = { onIconPositioned(AppId.MESSAGES, true, it) }, onClick = { onLaunchApp(AppId.MESSAGES, true) }, onLongClick = { viewModel.openContextMenu(AppId.MESSAGES, it) })
+                DockIconItem(AppId.MUSIC, Icons.Default.MusicNote, Color(0xFFFF2D55), useNothingIconTheme, showAppLabels, alpha = getDockIconAlpha(AppId.MUSIC), onPositioned = { onIconPositioned(AppId.MUSIC, true, it) }, onClick = { onLaunchApp(AppId.MUSIC, true) }, onLongClick = { viewModel.openContextMenu(AppId.MUSIC, it) })
             }
         }
     }
@@ -1163,7 +1243,7 @@ fun VirtualDeskGrid(
                         modifier = Modifier.size(22.dp)
                     )
                     Text(
-                        text = "Настройки лаунчера",
+                        text = "Анимации (Тюнинг ОС)",
                         color = Color.White,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
@@ -1171,15 +1251,19 @@ fun VirtualDeskGrid(
                 }
             },
             text = {
+                val animationType by viewModel.animationType.collectAsStateWithLifecycle()
+                val springDamping by viewModel.springDamping.collectAsStateWithLifecycle()
+                val springStiffness by viewModel.springStiffness.collectAsStateWithLifecycle()
+
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
                     modifier = Modifier.padding(vertical = 8.dp)
                 ) {
                     Text(
-                        text = "Персонализация премиального рабочего стола. Сделайте интерфейс лаконичным и стильным.",
+                        text = "Персонализация премиального рабочего стола. Настройте физику и шрифты под себя.",
                         color = Color.LightGray,
-                        fontSize = 12.sp,
-                        lineHeight = 16.sp
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp
                     )
 
                     // Toggle App Labels
@@ -1187,7 +1271,7 @@ fun VirtualDeskGrid(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { viewModel.toggleAppLabels() }
-                            .padding(vertical = 4.dp),
+                            .padding(vertical = 2.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1195,14 +1279,13 @@ fun VirtualDeskGrid(
                             Text(
                                 text = "Подписи значков",
                                 color = Color.White,
-                                fontSize = 14.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "Показывать имена приложений под иконками",
+                                text = "Показывать имена приложений",
                                 color = Color.Gray,
-                                fontSize = 11.sp
+                                fontSize = 10.sp
                             )
                         }
                         Switch(
@@ -1214,6 +1297,108 @@ fun VirtualDeskGrid(
                                 uncheckedThumbColor = Color.LightGray,
                                 uncheckedTrackColor = Color.DarkGray
                             )
+                        )
+                    }
+
+                    Divider(color = Color.White.copy(alpha = 0.08f))
+
+                    // Animation Presets
+                    Text(
+                        text = "Профиль анимации",
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf("Spring iOS", "Linear Fast", "Bouncy Elastic").forEach { type ->
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(if (animationType == type) Color(0xFF00FFCC) else Color.White.copy(alpha = 0.05f), RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        viewModel.setAnimationType(type)
+                                        when (type) {
+                                            "Spring iOS" -> {
+                                                viewModel.setSpringDamping(0.70f)
+                                                viewModel.setSpringStiffness(600f)
+                                                viewModel.setAnimationSpeed(300)
+                                            }
+                                            "Linear Fast" -> {
+                                                viewModel.setSpringDamping(1.0f)
+                                                viewModel.setSpringStiffness(1200f)
+                                                viewModel.setAnimationSpeed(200)
+                                            }
+                                            "Bouncy Elastic" -> {
+                                                viewModel.setSpringDamping(0.5f)
+                                                viewModel.setSpringStiffness(250f)
+                                                viewModel.setAnimationSpeed(450)
+                                            }
+                                        }
+                                    }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    type,
+                                    color = if (animationType == type) Color.Black else Color.White,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    // Damping slider
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Упругость (Damping)", color = Color.White, fontSize = 11.sp)
+                            Text(String.format(java.util.Locale.US, "%.2f", springDamping), color = Color(0xFF00FFCC), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Slider(
+                            value = springDamping,
+                            onValueChange = { viewModel.setSpringDamping(it) },
+                            valueRange = 0.15f..1.5f,
+                            colors = SliderDefaults.colors(activeTrackColor = Color(0xFF00FFCC), thumbColor = Color(0xFF00FFCC))
+                        )
+                    }
+
+                    // Stiffness slider
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Жесткость (Stiffness)", color = Color.White, fontSize = 11.sp)
+                            Text("${springStiffness.toInt()}", color = Color(0xFF00FFCC), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Slider(
+                            value = springStiffness,
+                            onValueChange = { viewModel.setSpringStiffness(it) },
+                            valueRange = 20f..2000f,
+                            colors = SliderDefaults.colors(activeTrackColor = Color(0xFF00FFCC), thumbColor = Color(0xFF00FFCC))
+                        )
+                    }
+
+                    // Speed slider
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Длительность (Speed)", color = Color.White, fontSize = 11.sp)
+                            Text("${animDurationMs} ms", color = Color(0xFF00FFCC), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Slider(
+                            value = animDurationMs.toFloat(),
+                            onValueChange = { viewModel.setAnimationSpeed(it.toInt()) },
+                            valueRange = 50f..1800f,
+                            colors = SliderDefaults.colors(activeTrackColor = Color(0xFF00FFCC), thumbColor = Color(0xFF00FFCC))
                         )
                     }
                 }
@@ -1231,6 +1416,22 @@ fun VirtualDeskGrid(
     }
 }
 
+fun getAppIconGradient(app: AppId): Brush {
+    return when (app) {
+        AppId.SETTINGS -> Brush.verticalGradient(listOf(Color(0xFF8E8E93), Color(0xFF636366)))
+        AppId.FILES -> Brush.verticalGradient(listOf(Color(0xFFFF9500), Color(0xFFFFCC00)))
+        AppId.MUSIC -> Brush.verticalGradient(listOf(Color(0xFFFF2D55), Color(0xFFFF5E7C)))
+        AppId.CAMERA -> Brush.verticalGradient(listOf(Color(0xFF555555), Color(0xFF222222)))
+        AppId.GALLERY -> Brush.verticalGradient(listOf(Color(0xFF34C759), Color(0xFF00ACC1)))
+        AppId.PHONE -> Brush.verticalGradient(listOf(Color(0xFF34C759), Color(0xFF4CD964)))
+        AppId.MESSAGES -> Brush.verticalGradient(listOf(Color(0xFF007AFF), Color(0xFF5AC8FA)))
+        AppId.CALCULATOR -> Brush.verticalGradient(listOf(Color(0xFFFB9600), Color(0xFFD47C00)))
+        AppId.CALENDAR -> Brush.verticalGradient(listOf(Color(0xFFEA4335), Color(0xFFFF6B6B)))
+        AppId.CLOCK -> Brush.verticalGradient(listOf(Color(0xFF1C1D24), Color(0xFF0C0E14)))
+        AppId.COMPASS -> Brush.verticalGradient(listOf(Color(0xFF5856D6), Color(0xFFAF52DE)))
+    }
+}
+
 @Composable
 fun DeskIconItem(
     id: AppId,
@@ -1240,44 +1441,62 @@ fun DeskIconItem(
     useNothingTheme: Boolean,
     showLabels: Boolean,
     alpha: Float = 1f,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
+    onPositioned: (LayoutCoordinates) -> Unit = {},
+    onClick: () -> Unit,
+    onLongClick: (androidx.compose.ui.geometry.Offset) -> Unit = {}
 ) {
-    val iconShape = RoundedCornerShape(16.dp) // Exquisite organic modern OS squircleProxy
+    val sizeDp = if (showLabels) 66.dp else 76.dp
+    val iconShape = RoundedCornerShape(15.dp)
+    val backgroundBrush = remember(id) { getAppIconGradient(id) }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier
-            .width(if (showLabels) 68.dp else 76.dp)
+        modifier = Modifier
+            .width(if (showLabels) 80.dp else 86.dp)
             .alpha(alpha)
-            .clickable(onClick = onClick)
-            .testTag("app_${trimmed(id)}")
-    ) {
-        // High-end dual dynamic background brush based on monochromatic preference toggle
-        val backgroundBrush = remember(useNothingTheme, themeColor) {
-            if (useNothingTheme) {
-                Brush.verticalGradient(listOf(Color(0xFF1C1D24), Color(0xFF101114)))
-            } else {
-                Brush.verticalGradient(listOf(themeColor, themeColor.copy(alpha = 0.65f)))
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { _ -> onClick() },
+                    onLongPress = { offset -> onLongClick(offset) }
+                )
             }
-        }
-
+            .testTag("app_${id.name.lowercase(java.util.Locale.US)}")
+    ) {
         Box(
             modifier = Modifier
-                .size(if (showLabels) 54.dp else 66.dp) // Grows significantly larger when labels are hidden!
+                .shadow(
+                    elevation = 8.dp,
+                    shape = iconShape,
+                    clip = false
+                )
+                .size(sizeDp)
                 .background(backgroundBrush, iconShape)
-                .border(
-                    width = 0.8.dp,
-                    color = if (useNothingTheme) Color.White.copy(alpha = 0.12f) else themeColor.copy(alpha = 0.3f),
-                    shape = iconShape
-                ),
+                .onGloballyPositioned { onPositioned(it) },
             contentAlignment = Alignment.Center
         ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.22f),
+                                Color.White.copy(alpha = 0.05f),
+                                Color.Transparent,
+                                Color.Transparent
+                            ),
+                            start = Offset(0f, 0f),
+                            end = Offset(110f, 110f)
+                        ),
+                        shape = iconShape
+                    )
+            )
+
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = Color.White,
-                modifier = Modifier.size(if (showLabels) 24.dp else 32.dp) // Grows much larger to stand out!
+                modifier = Modifier.size(sizeDp * 0.44f)
             )
         }
 
@@ -1301,39 +1520,59 @@ fun DockIconItem(
     icon: ImageVector,
     themeColor: Color,
     useNothingTheme: Boolean,
+    showLabels: Boolean,
     alpha: Float = 1f,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
+    onPositioned: (LayoutCoordinates) -> Unit = {},
+    onClick: () -> Unit,
+    onLongClick: (androidx.compose.ui.geometry.Offset) -> Unit = {}
 ) {
-    val iconShape = RoundedCornerShape(16.dp) // squircle alignment
-
-    val backgroundBrush = remember(useNothingTheme, themeColor) {
-        if (useNothingTheme) {
-            Brush.verticalGradient(listOf(Color(0xFF1C1D24), Color(0xFF101114)))
-        } else {
-            Brush.verticalGradient(listOf(themeColor, themeColor.copy(alpha = 0.65f)))
-        }
-    }
+    val sizeDp = if (showLabels) 66.dp else 76.dp
+    val iconShape = RoundedCornerShape(15.dp)
+    val backgroundBrush = remember(id) { getAppIconGradient(id) }
 
     Box(
-        modifier = modifier
-            .size(54.dp)
+        modifier = Modifier
+            .shadow(
+                elevation = 8.dp,
+                shape = iconShape,
+                clip = false
+            )
+            .size(sizeDp)
             .alpha(alpha)
             .background(backgroundBrush, iconShape)
-            .border(
-                width = 0.8.dp,
-                color = if (useNothingTheme) Color.White.copy(alpha = 0.12f) else themeColor.copy(alpha = 0.3f),
-                shape = iconShape
-            )
-            .clickable(onClick = onClick)
-            .testTag("dock_${trimmed(id)}"),
+            .onGloballyPositioned { onPositioned(it) }
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { _ -> onClick() },
+                    onLongPress = { offset -> onLongClick(offset) }
+                )
+            }
+            .testTag("dock_${id.name.lowercase(java.util.Locale.US)}"),
         contentAlignment = Alignment.Center
     ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.22f),
+                            Color.White.copy(alpha = 0.05f),
+                            Color.Transparent,
+                            Color.Transparent
+                        ),
+                        start = Offset(0f, 0f),
+                        end = Offset(110f, 110f)
+                    ),
+                    shape = iconShape
+                )
+        )
+
         Icon(
             imageVector = icon,
             contentDescription = null,
             tint = Color.White,
-            modifier = Modifier.size(26.dp)
+            modifier = Modifier.size(sizeDp * 0.44f)
         )
     }
 }
@@ -1548,52 +1787,121 @@ fun QuickSettingsTile(label: String, icon: ImageVector, isActive: Boolean, onCli
 
 // Shell holding the opened App wrapper + dynamic Gesture Pill navigation
 @Composable
-fun AppShell(app: AppId, viewModel: OSViewModel, contentPercent: Float) {
+fun AppShell(
+    app: AppId,
+    viewModel: OSViewModel,
+    contentPercent: Float,
+    onCloseApp: (Float) -> Unit
+) {
     Box(modifier = Modifier.fillMaxSize()) {
-        // App Internal Interface
-        Column(
+        // App Content Layout (renders the app screen at full size beneath overlays)
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = 16.dp) // Leave safety gap for navigation pill
+                .background(Color(0xFF0C0E14))
         ) {
-            // App internal status bar spacer
-            Spacer(modifier = Modifier.height(28.dp))
-
-            // Dynamic layout switcher
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .background(Color(0xFF0C0E14))
-            ) {
-                if (contentPercent > 0.82f) { // Render app elements only near maximum expansion to optimize rendering
-                    when (app) {
-                        AppId.SETTINGS -> SettingsAppScreen(viewModel)
-                        AppId.NOTES -> NotesAppScreen(viewModel)
-                        AppId.MUSIC -> MusicPlayerScreen(viewModel)
-                        AppId.CAMERA -> CameraAppScreen(viewModel)
-                        AppId.GALLERY -> GalleryAppScreen(viewModel)
-                        AppId.TERMINAL -> TerminalAppScreen(viewModel)
-                        AppId.FILES -> FileExplorerAppScreen(viewModel)
-                        AppId.PHONE -> PhoneAppScreen(viewModel)
-                        AppId.MESSAGES -> MessagesAppScreen(viewModel)
-                        AppId.BROWSER -> WebSimAppScreen(viewModel)
-                    }
-                } else {
-                    // Minimal loading spinner or placeholder icon while animating
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Color(0xFF00FFCC), strokeWidth = 2.dp)
+            if (contentPercent > 0.85f) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Spacer(modifier = Modifier.height(28.dp)) // Safe status bar offset
+                    Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                        when (app) {
+                            AppId.SETTINGS -> SettingsAppScreen(viewModel)
+                            AppId.FILES -> FileExplorerAppScreen(viewModel)
+                            AppId.MUSIC -> MusicPlayerScreen(viewModel)
+                            AppId.CAMERA -> CameraAppScreen(viewModel)
+                            AppId.GALLERY -> GalleryAppScreen(viewModel)
+                            AppId.PHONE -> PhoneAppScreen(viewModel)
+                            AppId.MESSAGES -> MessagesAppScreen(viewModel)
+                            AppId.CALCULATOR -> CalculatorAppScreen(viewModel)
+                            AppId.CALENDAR -> CalendarAppScreen(viewModel)
+                            AppId.CLOCK -> ClockAppScreen(viewModel)
+                            AppId.COMPASS -> CompassAppScreen(viewModel)
+                        }
                     }
                 }
             }
         }
 
-        // Bottom Safe Navigation Pill (The user specified: Gesture navigation rather than 3 buttons)
+        // Luxury Organic Splash Screen (cross-fades seamlessly with full screen state)
+        val splashAlpha = (1f - (contentPercent - 0.75f) / 0.15f).coerceIn(0f, 1f)
+        if (splashAlpha > 0f) {
+            val appBrandColor = when (app) {
+                AppId.SETTINGS -> Color(0xFF607D8B)
+                AppId.FILES -> Color(0xFFFFB300)
+                AppId.MUSIC -> Color(0xFFFF2D55)
+                AppId.CAMERA -> Color(0xFF555555)
+                AppId.GALLERY -> Color(0xFF34C759)
+                AppId.PHONE -> Color(0xFF34C759)
+                AppId.MESSAGES -> Color(0xFF007AFF)
+                AppId.CALCULATOR -> Color(0xFFFB9600)
+                AppId.CALENDAR -> Color(0xFFEA4335)
+                AppId.CLOCK -> Color(0xFF1E88E5)
+                AppId.COMPASS -> Color(0xFF5856D6)
+            }
+
+            val appIcon = when (app) {
+                AppId.SETTINGS -> Icons.Default.Settings
+                AppId.FILES -> Icons.Default.Folder
+                AppId.MUSIC -> Icons.Default.MusicNote
+                AppId.CAMERA -> Icons.Default.PhotoCamera
+                AppId.GALLERY -> Icons.Default.Image
+                AppId.PHONE -> Icons.Default.Phone
+                AppId.MESSAGES -> Icons.Default.Sms
+                AppId.CALCULATOR -> Icons.Default.Calculate
+                AppId.CALENDAR -> Icons.Default.CalendarToday
+                AppId.CLOCK -> Icons.Default.AccessTime
+                AppId.COMPASS -> Icons.Default.Explore
+            }
+
+            val useNothingTheme by viewModel.useNothingIconTheme.collectAsStateWithLifecycle()
+            val splashBg = if (useNothingTheme) Color(0xFF16181F) else appBrandColor
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .alpha(splashAlpha)
+                    .background(splashBg),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(110.dp)
+                        .shadow(elevation = 16.dp, shape = CircleShape, clip = false)
+                        .background(Color.White.copy(alpha = 0.12f), CircleShape)
+                        .border(
+                            width = 0.8.dp,
+                            color = Color.White.copy(alpha = 0.20f),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = appIcon,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(54.dp)
+                    )
+                }
+            }
+        }
+
+        // Interaction Blocker logic during open/close animations to prevent rogue tap events
+        if (contentPercent < 1.0f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectTapGestures { }
+                    }
+            )
+        }
+
+        // Bottom Safe Navigation Pill Gesture Overlay (Worked cleanly over all application overlays)
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .height(36.dp) // Generous grab area for intuitive touch ergonomics
+                .height(36.dp)
         ) {
             val screenHPx = with(LocalDensity.current) { 620.dp.toPx() }
 
@@ -1610,10 +1918,10 @@ fun AppShell(app: AppId, viewModel: OSViewModel, contentPercent: Float) {
                             },
                             onDragEnd = {
                                 val progress = (kotlin.math.abs(cumulativeDragY) / screenHPx).coerceIn(0f, 1f)
-                                if (cumulativeDragY < -100f || progress > 0.20f) { // Swipe up triggers app collapse
-                                    viewModel.closeActiveApp()
+                                if (cumulativeDragY < -100f || progress > 0.20f) {
+                                    val swipeProg = viewModel.appSwipeProgress.value
+                                    onCloseApp(swipeProg)
                                 } else {
-                                    // Swipe-up canceled, animate active window back to full screen elastically
                                     viewModel.setSwipingApp(false)
                                     viewModel.updateAppSwipeProgress(0f, 0f)
                                 }
@@ -1629,22 +1937,20 @@ fun AppShell(app: AppId, viewModel: OSViewModel, contentPercent: Float) {
                         )
                     }
                     .clickable {
-                        // Accessible companion single tap close fallback with gorgeous spring physics
-                        viewModel.closeActiveApp()
+                        onCloseApp(0f)
                     },
                 contentAlignment = Alignment.Center
             ) {
                 val appSwipeProgress by viewModel.appSwipeProgress.collectAsStateWithLifecycle()
                 val isSwipingApp by viewModel.isSwipingApp.collectAsStateWithLifecycle()
                 
-                // Formula for dynamic gesture pill deformation when active or dragged
-                val pillWidth = lerpDp(100.dp, 60.dp, if (isSwipingApp) appSwipeProgress else 0f)
-                val pillHeight = lerpDp(4.dp, 6.dp, if (isSwipingApp) appSwipeProgress else 0f)
-                val pillColor = if (isSwipingApp) {
-                    Color(0xFF00FFCC) // Glows luxurious teal accent when active
-                } else {
-                    Color.White.copy(alpha = 0.8f)
-                }
+                val targetPillWidth = lerpDp(100.dp, 60.dp, if (isSwipingApp) appSwipeProgress else 0f)
+                val targetPillHeight = lerpDp(4.dp, 6.dp, if (isSwipingApp) appSwipeProgress else 0f)
+                val targetPillColor = if (isSwipingApp) Color(0xFF00FFCC) else Color.White.copy(alpha = 0.8f)
+
+                val pillWidth by animateDpAsState(targetValue = targetPillWidth, animationSpec = spring(dampingRatio = 0.7f, stiffness = 600f))
+                val pillHeight by animateDpAsState(targetValue = targetPillHeight, animationSpec = spring(dampingRatio = 0.7f, stiffness = 600f))
+                val pillColor by animateColorAsState(targetValue = targetPillColor, animationSpec = spring(dampingRatio = 0.7f, stiffness = 600f))
 
                 Box(
                     modifier = Modifier
@@ -1857,148 +2163,335 @@ fun SpeedChip(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-// 2. Notes App Screen
+// 2. Calculator App Screen
 @Composable
-fun NotesAppScreen(viewModel: OSViewModel) {
-    val notes by viewModel.notesList.collectAsStateWithLifecycle()
-    var isAddingNote by remember { mutableStateOf(false) }
-    var isViewingNote by remember { mutableStateOf<Note?>(null) }
-    var titleInput by remember { mutableStateOf("") }
-    var contentInput by remember { mutableStateOf("") }
+fun CalculatorAppScreen(viewModel: OSViewModel) {
+    var display by remember { mutableStateOf("0") }
+    var runningExpression by remember { mutableStateOf("") }
+    var history by remember { mutableStateOf(listOf<String>()) }
+    var resetOnNextKey by remember { mutableStateOf(false) }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        if (isAddingNote) {
-            Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
-                Text("New Quick Note", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = titleInput,
-                    onValueChange = { titleInput = it },
-                    label = { Text("Title", color = Color.LightGray) },
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                OutlinedTextField(
-                    value = contentInput,
-                    onValueChange = { contentInput = it },
-                    label = { Text("Write content here...", color = Color.LightGray) },
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.LightGray),
-                    modifier = Modifier.weight(1f).fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(
-                        onClick = { isAddingNote = false },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Cancel")
-                    }
-                    Button(
-                        onClick = {
-                            if (titleInput.isNotEmpty() && contentInput.isNotEmpty()) {
-                                viewModel.addNote(titleInput, contentInput)
-                                titleInput = ""
-                                contentInput = ""
-                                isAddingNote = false
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5E35B1)),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Save Note")
-                    }
-                }
-            }
-        } else if (isViewingNote != null) {
-            val note = isViewingNote!!
-            Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
-                Text(note.title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(note.date, color = Color.Gray, fontSize = 10.sp)
-                Spacer(modifier = Modifier.height(14.dp))
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .background(Color(0xFF161824), RoundedCornerShape(12.dp))
-                        .border(0.5.dp, Color.White.copy(0.1f), RoundedCornerShape(12.dp))
-                        .padding(14.dp)
-                ) {
-                    Text(note.content, color = Color.White, fontSize = 13.sp, lineHeight = 18.sp)
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(
-                        onClick = {
-                            viewModel.deleteNote(note.id)
-                            isViewingNote = null
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828)),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.Delete, null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Delete")
-                    }
-                    Button(
-                        onClick = { isViewingNote = null },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Back")
-                    }
-                }
-            }
-        } else {
-            Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("QuickPad Notes", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    IconButton(
-                        onClick = { isAddingNote = true },
-                        modifier = Modifier.background(Color(0xFF5E35B1), CircleShape)
-                    ) {
-                        Icon(imageVector = Icons.Default.Add, contentDescription = "Add", tint = Color.White)
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF0F1016))
+            .padding(16.dp)
+    ) {
+        // App Title
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+        ) {
+            Icon(Icons.Default.Calculate, contentDescription = null, tint = Color(0xFFFB9600), modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Calculator", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        }
 
-                if (notes.isEmpty()) {
-                    Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        Text("No notes found. Create some!", color = Color.Gray, fontSize = 12.sp)
+        // Calculation log history
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .background(Color(0xFF161824), RoundedCornerShape(12.dp))
+                .border(0.5.dp, Color.White.copy(0.08f), RoundedCornerShape(12.dp))
+                .padding(12.dp)
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                reverseLayout = true
+            ) {
+                if (history.isEmpty()) {
+                    item {
+                        Text("No Calculations Yet", color = Color.Gray, fontSize = 11.sp)
                     }
                 } else {
-                    LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(notes) { note ->
-                            Card(
+                    items(history.reversed()) { expr ->
+                        Text(expr, color = Color.LightGray.copy(alpha = 0.8f), fontSize = 12.sp, textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp))
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Large Output Display
+        Column(
+            horizontalAlignment = Alignment.End,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp)
+        ) {
+            Text(runningExpression.ifEmpty { " " }, color = Color.Gray, fontSize = 13.sp, maxLines = 1)
+            Text(
+                display,
+                color = Color.White,
+                fontSize = 42.sp,
+                fontWeight = FontWeight.Light,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Premium iOS circular interactive keypad
+        val buttons = listOf(
+            listOf("C", "±", "%", "/"),
+            listOf("7", "8", "9", "*"),
+            listOf("4", "5", "6", "-"),
+            listOf("1", "2", "3", "+"),
+            listOf("0", ".", "⌫", "=")
+        )
+
+        Column(
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            buttons.forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    row.forEach { char ->
+                        val isOperatorVal = char == "/" || char == "*" || char == "-" || char == "+" || char == "="
+                        val isSpecial = char == "C" || char == "±" || char == "%" || char == "⌫"
+                        val bgColor = when {
+                            isOperatorVal -> Color(0xFFFB9600)
+                            isSpecial -> Color.White.copy(alpha = 0.12f)
+                            else -> Color.White.copy(alpha = 0.05f)
+                        }
+                        val fgColor = when {
+                            isOperatorVal -> Color.White
+                            isSpecial -> Color(0xFFFB9600)
+                            else -> Color.White
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .aspectRatio(1.15f)
+                                .background(bgColor, RoundedCornerShape(16.dp))
+                                .clickable {
+                                    when (char) {
+                                        "C" -> {
+                                            display = "0"
+                                            runningExpression = ""
+                                            resetOnNextKey = false
+                                        }
+                                        "⌫" -> {
+                                            if (display.length > 1) {
+                                                display = display.dropLast(1)
+                                            } else {
+                                                display = "0"
+                                            }
+                                        }
+                                        "±" -> {
+                                            if (display != "0") {
+                                                display = if (display.startsWith("-")) display.drop(1) else "-$display"
+                                            }
+                                        }
+                                        "%" -> {
+                                            val value = display.toDoubleOrNull() ?: 0.0
+                                            display = (value / 100.0).toString()
+                                        }
+                                        "+", "-", "*", "/" -> {
+                                            runningExpression = "$display $char "
+                                            resetOnNextKey = true
+                                        }
+                                        "=" -> {
+                                            if (runningExpression.isNotEmpty()) {
+                                                val parts = runningExpression.trim().split(" ")
+                                                if (parts.size >= 2) {
+                                                    val num1 = parts[0].toDoubleOrNull() ?: 0.0
+                                                    val op = parts[1]
+                                                    val num2 = display.toDoubleOrNull() ?: 0.0
+                                                    val result = when (op) {
+                                                        "+" -> num1 + num2
+                                                        "-" -> num1 - num2
+                                                        "*" -> num1 * num2
+                                                        "/" -> if (num2 != 0.0) num1 / num2 else "Error"
+                                                        else -> num2
+                                                    }
+                                                    val formattedResult = if (result is Double) {
+                                                        if (result % 1.0 == 0.0) result.toLong().toString() else String.format(java.util.Locale.US, "%.4f", result).trimEnd('0').trimEnd('.')
+                                                    } else {
+                                                        result.toString()
+                                                    }
+                                                    history = history + "$runningExpression$display = $formattedResult"
+                                                    display = formattedResult
+                                                    runningExpression = ""
+                                                    resetOnNextKey = true
+                                                }
+                                            }
+                                        }
+                                        else -> { // Digits & Decimal
+                                            if (display == "0" || resetOnNextKey) {
+                                                display = char
+                                                resetOnNextKey = false
+                                            } else {
+                                                if (char == "." && display.contains(".")) {
+                                                    // ignore duplicate decimal points
+                                                } else {
+                                                    display += char
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                char,
+                                color = fgColor,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// 2b. Calendar App Screen
+@Composable
+fun CalendarAppScreen(viewModel: OSViewModel) {
+    var selectedDay by remember { mutableStateOf(12) }
+    val daysInMonth = 30
+    val startingWeekdayOffset = 4 // Friday
+
+    val events = remember {
+        mapOf(
+            5 to listOf("🔥 Team Project Synch", "🚀 FluxOS Core release"),
+            12 to listOf("💡 Design System Review", "🍕 Developer Pizza Night"),
+            18 to listOf("📅 Hardware Sprint Demo"),
+            25 to listOf("🚀 Final Production QA testing", "🌟 Antigravity engine deploy")
+        )
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF0F1016))
+            .padding(14.dp)
+    ) {
+        // Header
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.CalendarToday, contentDescription = null, tint = Color(0xFFEA4335), modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Calendar", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
+            Text("June 2026", color = Color.LightGray, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+
+        // Days of Week Header
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceAround
+        ) {
+            listOf("M", "T", "W", "T", "F", "S", "S").forEach { day ->
+                Text(day, color = Color.Gray, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(36.dp), textAlign = TextAlign.Center)
+            }
+        }
+
+        // Calendar Grid layout
+        Column(
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            var dayCounter = 1
+            for (row in 0..5) {
+                if (dayCounter > daysInMonth) break
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    for (col in 0..6) {
+                        val isDayValid = (row > 0 || col >= startingWeekdayOffset) && (dayCounter <= daysInMonth)
+                        if (isDayValid) {
+                            val currentDay = dayCounter
+                            val hasEvent = events.containsKey(currentDay)
+                            val isSelected = currentDay == selectedDay
+
+                            Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { isViewingNote = note },
-                                colors = CardDefaults.cardColors(containerColor = Color(note.colorHex)),
-                                border = BorderStroke(0.5.dp, Color.White.copy(0.15f))
-                            ) {
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    Text(note.title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        note.content,
-                                        color = Color.White.copy(alpha = 0.7f),
-                                        fontSize = 11.sp,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
+                                    .size(36.dp)
+                                    .background(
+                                        color = when {
+                                            isSelected -> Color(0xFFEA4335)
+                                            hasEvent -> Color.White.copy(alpha = 0.08f)
+                                            else -> Color.Transparent
+                                        },
+                                        shape = RoundedCornerShape(10.dp)
                                     )
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text(note.date, color = Color.White.copy(alpha = 0.5f), fontSize = 9.sp)
+                                    .border(
+                                        width = if (hasEvent && !isSelected) 1.dp else 0.dp,
+                                        color = if (hasEvent) Color(0xFFEA4335).copy(alpha = 0.4f) else Color.Transparent,
+                                        shape = RoundedCornerShape(10.dp)
+                                    )
+                                    .clickable { selectedDay = currentDay },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        currentDay.toString(),
+                                        color = if (isSelected) Color.Black else Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected || hasEvent) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                    if (hasEvent && !isSelected) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(4.dp)
+                                                .background(Color(0xFFEA4335), CircleShape)
+                                        )
+                                    }
                                 }
                             }
+                            dayCounter++
+                        } else {
+                            Spacer(modifier = Modifier.size(36.dp))
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Schedule Event Details
+        Text("Events on June $selectedDay", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 6.dp))
+        
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .background(Color(0xFF161824), RoundedCornerShape(12.dp))
+                .border(0.5.dp, Color.White.copy(0.08f), RoundedCornerShape(12.dp))
+                .padding(12.dp)
+        ) {
+            val dayEvents = events[selectedDay]
+            if (dayEvents == null || dayEvents.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No events scheduled for today", color = Color.Gray, fontSize = 11.sp)
+                }
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(dayEvents) { event ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color.White.copy(alpha = 0.02f), RoundedCornerShape(8.dp))
+                                .border(0.5.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
+                                .padding(10.dp)
+                        ) {
+                            Box(modifier = Modifier.size(6.dp, 24.dp).background(Color(0xFFEA4335), RoundedCornerShape(2.dp)))
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(event, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                         }
                     }
                 }
@@ -2165,7 +2658,7 @@ fun MusicPlayerScreen(viewModel: OSViewModel) {
 @Composable
 fun CameraAppScreen(viewModel: OSViewModel) {
     var selectedFilter by remember { mutableStateOf("Normal") }
-    var zoomFactor by remember { mutableStateOf("1x") }
+    var zoomValue by remember { mutableStateOf(1f) } // Float supporting 1.0x to 100.0x
     var isShutterTriggered by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
@@ -2178,69 +2671,60 @@ fun CameraAppScreen(viewModel: OSViewModel) {
             else -> listOf(Color(0xFF2C3E50), Color(0xFF4CA1AF))
         }
 
-        val centerScale = when (zoomFactor) {
-            "2x" -> 1.5f
-            "5x" -> 2.5f
-            else -> 1.0f
-        }
+        // Scale corresponding to the 100x zoom value
+        val centerScale = 1.0f + (zoomValue / 100f) * 12f
 
         // Viewfinder
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .drawBehind {
-                    // Render abstract scenic canvas represent capturing environment
-                    val shapeWidth = size.width * 0.7f * centerScale
-                    val shapeHeight = size.height * 0.35f * centerScale
-
                     drawRect(
                         brush = Brush.radialGradient(
                             colors = scanGradient,
                             center = Offset(size.width / 2f, size.height / 2f),
-                            radius = size.width * 0.8f
+                            radius = size.width * 0.8f * centerScale
                         )
                     )
 
-                    // Draw abstract structures
-                    if (selectedFilter == "Matrix") {
-                        // lines
-                        for (i in 0..10) {
-                            drawCircle(Color.Green.copy(0.15f), radius = 30f * i, center = Offset(size.width / 2f, size.height / 2f))
-                        }
-                    } else {
-                        drawCircle(
-                            color = Color.White.copy(0.15f),
-                            radius = size.width * 0.2f * centerScale,
-                            center = Offset(size.width / 2f, size.height * 0.4f)
-                        )
-                    }
+                    // Draw abstract shapes depending on zoom scale
+                    drawCircle(
+                        color = Color.White.copy(0.12f),
+                        radius = size.width * 0.15f * centerScale,
+                        center = Offset(size.width / 2f, size.height * 0.45f)
+                    )
+
+                    drawCircle(
+                        color = Color.White.copy(0.06f),
+                        radius = size.width * 0.35f * centerScale,
+                        center = Offset(size.width / 2f, size.height * 0.45f)
+                    )
                 }
         ) {
             // Viewfinder Grid Lines & HUD targets
             Canvas(modifier = Modifier.fillMaxSize()) {
                 // Rule of thirds lines
-                drawLine(Color.White.copy(alpha = 0.2f), Offset(size.width / 3f, 0f), Offset(size.width / 3f, size.height), strokeWidth = 1f)
-                drawLine(Color.White.copy(alpha = 0.2f), Offset(size.width * 2f / 3f, 0f), Offset(size.width * 2f / 3f, size.height), strokeWidth = 1f)
-                drawLine(Color.White.copy(alpha = 0.2f), Offset(0f, size.height / 3f), Offset(size.width, size.height / 3f), strokeWidth = 1f)
-                drawLine(Color.White.copy(alpha = 0.2f), Offset(0f, size.height * 2f / 3f), Offset(size.width, size.height * 2f / 3f), strokeWidth = 1f)
+                drawLine(Color.White.copy(alpha = 0.15f), Offset(size.width / 3f, 0f), Offset(size.width / 3f, size.height), strokeWidth = 1f)
+                drawLine(Color.White.copy(alpha = 0.15f), Offset(size.width * 2f / 3f, 0f), Offset(size.width * 2f / 3f, size.height), strokeWidth = 1f)
+                drawLine(Color.White.copy(alpha = 0.15f), Offset(0f, size.height / 3f), Offset(size.width, size.height / 3f), strokeWidth = 1f)
+                drawLine(Color.White.copy(alpha = 0.15f), Offset(0f, size.height * 2f / 3f), Offset(size.width, size.height * 2f / 3f), strokeWidth = 1f)
 
                 // Crosshair at the center
-                drawCircle(Color.White.copy(alpha = 0.5f), radius = 10f, center = Offset(size.width / 2f, size.height / 2f))
+                drawCircle(Color.White.copy(alpha = 0.35f), radius = 12f, center = Offset(size.width / 2f, size.height / 2f))
             }
 
-            // Top Camera Header Actions
+            // Top Camera Header Actions (Clean modern lens stats overlay, removed trash HDR, 60 FPS)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(12.dp)
-                    .background(Color.Black.copy(0.4f), RoundedCornerShape(12.dp))
-                    .padding(8.dp),
+                    .background(Color.Black.copy(0.5f), RoundedCornerShape(12.dp))
+                    .padding(vertical = 10.dp, horizontal = 14.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("HDR Auto", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                Text("Aperture v1.0", color = Color(0xFF00FFCC), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                Text("60 FPS", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("ZOOM STREAK: ${String.format(java.util.Locale.US, "%.1f", zoomValue)}x", color = Color(0xFF00FFCC), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("SUPER ZOOM 100x", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Light)
             }
 
             // Controls bottom panel overlay
@@ -2248,16 +2732,36 @@ fun CameraAppScreen(viewModel: OSViewModel) {
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .background(Color.Black.copy(alpha = 0.7f))
-                    .padding(12.dp),
+                    .background(Color.Black.copy(alpha = 0.8f))
+                    .padding(14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Zoom toggles
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ZoomIndicator("1x", zoomFactor == "1x") { zoomFactor = "1x" }
-                    ZoomIndicator("2x", zoomFactor == "2x") { zoomFactor = "2x" }
-                    ZoomIndicator("5x", zoomFactor == "5x") { zoomFactor = "5x" }
+                // Quick Zoom Presets
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ZoomIndicator("1x", zoomValue == 1f) { zoomValue = 1f }
+                    ZoomIndicator("10x", zoomValue == 10f) { zoomValue = 10f }
+                    ZoomIndicator("50x", zoomValue == 50f) { zoomValue = 50f }
+                    ZoomIndicator("100x", zoomValue == 100f) { zoomValue = 100f }
+                }
+
+                // Fine precision zoom slider
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+                ) {
+                    Icon(Icons.Default.ZoomIn, contentDescription = null, tint = Color.LightGray, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Slider(
+                        value = zoomValue,
+                        onValueChange = { zoomValue = it },
+                        valueRange = 1f..100f,
+                        colors = SliderDefaults.colors(activeTrackColor = Color(0xFF00FFCC), thumbColor = Color(0xFF00FFCC)),
+                        modifier = Modifier.weight(1f)
+                    )
                 }
 
                 // Filter selectors
@@ -2268,21 +2772,32 @@ fun CameraAppScreen(viewModel: OSViewModel) {
                     FilterOptionChip("Standard", selectedFilter == "Normal") { selectedFilter = "Normal" }
                     FilterOptionChip("Cyberpunk", selectedFilter == "Cyberpunk") { selectedFilter = "Cyberpunk" }
                     FilterOptionChip("Monochrome", selectedFilter == "Monochrome") { selectedFilter = "Monochrome" }
-                    FilterOptionChip("Matrix CODE", selectedFilter == "Matrix") { selectedFilter = "Matrix" }
+                    FilterOptionChip("Matrix", selectedFilter == "Matrix") { selectedFilter = "Matrix" }
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // Physical trigger button
+                // Physical trigger button with Gallery Shortcut selector
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceAround,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Quick Gallery shortcut icon selection
+                    IconButton(
+                        onClick = { viewModel.openApp(AppId.GALLERY) },
+                        modifier = Modifier
+                            .background(Color.White.copy(alpha = 0.1f), CircleShape)
+                            .size(44.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Collections, contentDescription = "Choose Photo", tint = Color.White)
+                    }
+
+                    // Large physical trigger capture circle
                     Box(
                         modifier = Modifier
-                            .size(62.dp)
-                            .border(3.dp, Color.White, CircleShape)
+                            .size(66.dp)
+                            .border(4.dp, Color.White, CircleShape)
                             .padding(4.dp)
                             .background(Color.White, CircleShape)
                             .clickable {
@@ -2294,6 +2809,9 @@ fun CameraAppScreen(viewModel: OSViewModel) {
                                 }
                             }
                     )
+
+                    // Spacer placeholder to balance layout
+                    Spacer(modifier = Modifier.size(44.dp))
                 }
             }
         }
@@ -2467,122 +2985,232 @@ fun GalleryAppScreen(viewModel: OSViewModel) {
     }
 }
 
-// 6. Terminal App Screen
+// 6. Clock App Screen
 @Composable
-fun TerminalAppScreen(viewModel: OSViewModel) {
-    val history by viewModel.terminalHistory.collectAsStateWithLifecycle()
-    val consoleTheme by viewModel.terminalTheme.collectAsStateWithLifecycle()
-    var inputCommand by remember { mutableStateOf("") }
-
-    val themeColor = when (consoleTheme) {
-        TerminalTheme.MATRIX_GREEN -> Color(0xFF00FF33)
-        TerminalTheme.ORANGE_GLOW -> Color(0xFFFF6600)
-        TerminalTheme.SLEEK_CYAN -> Color(0xFF00FFFF)
+fun ClockAppScreen(viewModel: OSViewModel) {
+    var activeSubTab by remember { mutableStateOf("world") } // "world" or "stopwatch"
+    
+    // Stopwatch state
+    var stopwatchRunning by remember { mutableStateOf(false) }
+    var stopwatchMilliseconds by remember { mutableStateOf(0L) }
+    var laps by remember { mutableStateOf(listOf<String>()) }
+    
+    // Coroutine stopwatch loop
+    LaunchedEffect(stopwatchRunning) {
+        if (stopwatchRunning) {
+            val startTime = System.currentTimeMillis() - stopwatchMilliseconds
+            while (stopwatchRunning) {
+                stopwatchMilliseconds = System.currentTimeMillis() - startTime
+                delay(16)
+            }
+        }
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF0F1016))
+            .padding(14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // App title
         Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
         ) {
-            Text("FluxShell v2.0", color = themeColor, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+            Icon(Icons.Default.AccessTime, contentDescription = null, tint = Color(0xFF1E88E5), modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Clock", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        }
+
+        // Sub tabs
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White.copy(alpha = 0.04f), RoundedCornerShape(10.dp))
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            listOf("world" to "World Clock", "stopwatch" to "Stopwatch").forEach { (tabId, tabName) ->
+                val isSelected = activeSubTab == tabId
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(if (isSelected) Color(0xFF1E88E5) else Color.Transparent, RoundedCornerShape(8.dp))
+                        .clickable { activeSubTab = tabId }
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(tabName, color = if (isSelected) Color.Black else Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        if (activeSubTab == "world") {
+            // Live-drawn Dial on Canvas
             Box(
                 modifier = Modifier
-                    .size(width = 46.dp, height = 20.dp)
-                    .border(0.5.dp, themeColor, RoundedCornerShape(4.dp))
-                    .clickable { viewModel.executeTerminalCommand("theme") },
-                contentAlignment = Alignment.Center
+                    .size(150.dp)
+                    .background(Color(0xFF161824).copy(alpha = 0.5f), CircleShape)
+                    .border(2.dp, Color(0xFF1E88E5).copy(alpha = 0.3f), CircleShape)
             ) {
-                Text("COLOR", color = themeColor, fontSize = 8.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-            }
-        }
-
-        // Screen area scroll output
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .background(Color.Black)
-                .border(0.5.dp, themeColor.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
-                .padding(8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            items(history) { log ->
-                Text(
-                    text = log,
-                    color = themeColor,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace
+                val secAngle = rememberInfiniteTransition().animateFloat(
+                    initialValue = 0f,
+                    targetValue = 360f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(60000, easing = LinearEasing),
+                        repeatMode = RepeatMode.Restart
+                    )
                 )
-            }
-        }
 
-        Spacer(modifier = Modifier.height(8.dp))
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val centerPt = Offset(size.width / 2f, size.height / 2f)
+                    val radius = size.width / 2f
 
-        // Quick shortcut chips to prevent tricky touch keyword inputs
-        Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            TerminalShortcutChip("neofetch") { viewModel.executeTerminalCommand("neofetch") }
-            TerminalShortcutChip("matrix") { viewModel.executeTerminalCommand("matrix") }
-            TerminalShortcutChip("system") { viewModel.executeTerminalCommand("system") }
-            TerminalShortcutChip("help") { viewModel.executeTerminalCommand("help") }
-            TerminalShortcutChip("clear") { viewModel.executeTerminalCommand("clear") }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Line command text field
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("$ ", color = themeColor, fontSize = 14.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-            OutlinedTextField(
-                value = inputCommand,
-                onValueChange = { inputCommand = it },
-                textStyle = androidx.compose.ui.text.TextStyle(color = themeColor, fontFamily = FontFamily.Monospace, fontSize = 12.sp),
-                modifier = Modifier.weight(1f).height(46.dp),
-                placeholder = { Text("Type cmd...", color = themeColor.copy(alpha = 0.4f), fontSize = 11.sp, fontFamily = FontFamily.Monospace) },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = themeColor,
-                    unfocusedBorderColor = themeColor.copy(0.4f),
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent
-                ),
-                shape = RoundedCornerShape(8.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            IconButton(
-                onClick = {
-                    if (inputCommand.isNotEmpty()) {
-                        viewModel.executeTerminalCommand(inputCommand)
-                        inputCommand = ""
+                    // Draw 12 dial tick markers
+                    for (i in 0..11) {
+                        val angleRad = (i * 30) * Math.PI / 180f
+                        val start = Offset(
+                            (centerPt.x + (radius - 12.dp.toPx()) * Math.sin(angleRad)).toFloat(),
+                            (centerPt.y - (radius - 12.dp.toPx()) * Math.cos(angleRad)).toFloat()
+                        )
+                        val end = Offset(
+                            (centerPt.x + (radius - 4.dp.toPx()) * Math.sin(angleRad)).toFloat(),
+                            (centerPt.y - (radius - 4.dp.toPx()) * Math.cos(angleRad)).toFloat()
+                        )
+                        drawLine(Color(0xFF1E88E5).copy(alpha = 0.5f), start, end, strokeWidth = 2.dp.toPx())
                     }
-                },
-                modifier = Modifier
-                    .background(themeColor.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                    .border(0.5.dp, themeColor, RoundedCornerShape(8.dp))
-                    .size(38.dp)
+
+                    // Rotating animated second hand
+                    val secRad = (secAngle.value - 90f) * Math.PI / 180f
+                    val secEnd = Offset(
+                        (centerPt.x + (radius - 16.dp.toPx()) * Math.cos(secRad)).toFloat(),
+                        (centerPt.y + (radius - 16.dp.toPx()) * Math.sin(secRad)).toFloat()
+                    )
+                    drawLine(Color(0xFFFF2D55), centerPt, secEnd, strokeWidth = 1.5.dp.toPx())
+
+                    // Static hour hand
+                    val hourEnd = Offset(
+                        (centerPt.x + (radius * 0.5f) * Math.cos(-45f * Math.PI / 180f)).toFloat(),
+                        (centerPt.y + (radius * 0.5f) * Math.sin(-45f * Math.PI / 180f)).toFloat()
+                    )
+                    drawLine(Color.White, centerPt, hourEnd, strokeWidth = 3.dp.toPx())
+
+                    // Static minute hand
+                    val minEnd = Offset(
+                        (centerPt.x + (radius * 0.75f) * Math.cos(70f * Math.PI / 180f)).toFloat(),
+                        (centerPt.y + (radius * 0.75f) * Math.sin(70f * Math.PI / 180f)).toFloat()
+                    )
+                    drawLine(Color.LightGray, centerPt, minEnd, strokeWidth = 2.5.dp.toPx())
+
+                    drawCircle(Color(0xFF1E88E5), radius = 4.dp.toPx(), center = centerPt)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // World clocks list
+            Text("World Cities", color = Color.LightGray, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start).padding(bottom = 6.dp))
+            
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(imageVector = Icons.Default.ArrowRight, contentDescription = "Send", tint = themeColor)
+                val worldCities = listOf(
+                    Triple("London", "UTC +0 (6:26 AM)", "Today, -3 hrs"),
+                    Triple("Moscow", "UTC +3 (9:26 AM)", "Local time"),
+                    Triple("Tokyo", "UTC +9 (3:26 PM)", "Today, +6 hrs"),
+                    Triple("New York", "UTC -5 (1:26 AM)", "Today, -8 hrs")
+                )
+                items(worldCities) { (city, time, offset) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF161824), RoundedCornerShape(10.dp))
+                            .border(0.5.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(10.dp))
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(city, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text(offset, color = Color.Gray, fontSize = 10.sp)
+                        }
+                        Text(time, color = Color(0xFF1E88E5), fontSize = 15.sp, fontWeight = FontWeight.Light)
+                    }
+                }
+            }
+        } else {
+            // Stopwatch view
+            val formattedTime = remember(stopwatchMilliseconds) {
+                val hours = (stopwatchMilliseconds / 3600000) % 24
+                val minutes = (stopwatchMilliseconds / 60000) % 60
+                val seconds = (stopwatchMilliseconds / 1000) % 60
+                val ms = (stopwatchMilliseconds % 1000) / 10
+                String.format(java.util.Locale.US, "%02d:%02d:%02d.%02d", hours, minutes, seconds, ms)
+            }
+
+            Text(
+                text = formattedTime,
+                color = Color.White,
+                fontSize = 38.sp,
+                fontWeight = FontWeight.Medium,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.padding(vertical = 24.dp)
+            )
+
+            // Stopwatch Controls
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Button(
+                    onClick = {
+                        if (stopwatchRunning) {
+                            laps = laps + "${laps.size + 1}. $formattedTime"
+                        } else {
+                            stopwatchMilliseconds = 0L
+                            laps = emptyList()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.12f)),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(if (stopwatchRunning) "Lap" else "Reset", color = Color.White)
+                }
+
+                Button(
+                    onClick = { stopwatchRunning = !stopwatchRunning },
+                    colors = ButtonDefaults.buttonColors(containerColor = if (stopwatchRunning) Color(0xFFFF2D55) else Color(0xFF1E88E5)),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(if (stopwatchRunning) "Pause" else "Start", color = Color.White)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Lap List
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                items(laps.reversed()) { lap ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color.White.copy(alpha = 0.02f), RoundedCornerShape(8.dp))
+                            .padding(10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Lap ${lap.substringBefore('.')}", color = Color.LightGray, fontSize = 11.sp)
+                        Text(lap.substringAfter(' '), color = Color.White, fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
-    }
-}
-
-@Composable
-fun TerminalShortcutChip(label: String, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .clickable(onClick = onClick)
-            .background(Color.White.copy(0.04f), RoundedCornerShape(4.dp))
-            .border(0.5.dp, Color.LightGray.copy(0.2f), RoundedCornerShape(4.dp))
-            .padding(horizontal = 8.dp, vertical = 6.dp)
-    ) {
-        Text(label, color = Color.White, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
     }
 }
 
@@ -2747,220 +3375,162 @@ fun FileRowItem(name: String, icon: ImageVector, size: String, onClick: () -> Un
     }
 }
 
-// 8. Interactive Browser WebSim App
+// 8. Compass App Screen
 @Composable
-fun WebSimAppScreen(viewModel: OSViewModel) {
-    val browserUrl by viewModel.browserUrl.collectAsStateWithLifecycle()
-    var searchInput by remember { mutableStateOf("") }
-    var mockCartSize by remember { mutableStateOf(0) }
-    var socialLikes by remember { mutableStateOf(105) }
+fun CompassAppScreen(viewModel: OSViewModel) {
+    var azimuthSlider by remember { mutableStateOf(210f) } // default Southwest-ish
+    var isAutoRotating by remember { mutableStateOf(true) }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        // Address search bar head
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color(0xFF14161F))
-                .padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            IconButton(
-                onClick = { viewModel.setBrowserUrl("flux://search") },
-                modifier = Modifier.size(28.dp)
-            ) {
-                Icon(imageVector = Icons.Default.ArrowBack, contentDescription = null, tint = Color.LightGray, modifier = Modifier.size(16.dp))
-            }
-
-            OutlinedTextField(
-                value = searchInput,
-                onValueChange = { searchInput = it },
-                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 11.sp),
-                modifier = Modifier.weight(1f).height(38.dp),
-                placeholder = { Text("Search link / keyword...", color = Color.LightGray, fontSize = 11.sp) },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF00FFCC),
-                    unfocusedBorderColor = Color.DarkGray
-                ),
-                shape = RoundedCornerShape(8.dp)
-            )
-
-            IconButton(
-                onClick = {
-                    if (searchInput.isNotEmpty()) {
-                        viewModel.submitSearch(searchInput)
-                    }
-                },
-                modifier = Modifier
-                    .background(Color(0xFF00FFCC).copy(alpha = 0.1f), RoundedCornerShape(8.dp))
-                    .size(28.dp)
-            ) {
-                Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = Color(0xFF00FFCC), modifier = Modifier.size(16.dp))
+    LaunchedEffect(isAutoRotating) {
+        if (isAutoRotating) {
+            while (true) {
+                azimuthSlider = (azimuthSlider + 0.35f) % 360f
+                delay(16)
             }
         }
+    }
 
-        // Web simulated view screen
+    val directionString = remember(azimuthSlider) {
+        val heading = (azimuthSlider + 360) % 360
+        when {
+            heading >= 337.5 || heading < 22.5 -> "N"
+            heading >= 22.5 && heading < 67.5 -> "NE"
+            heading >= 67.5 && heading < 112.5 -> "E"
+            heading >= 112.5 && heading < 157.5 -> "SE"
+            heading >= 157.5 && heading < 202.5 -> "S"
+            heading >= 202.5 && heading < 247.5 -> "SW"
+            heading >= 247.5 && heading < 292.5 -> "W"
+            else -> "NW"
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF0F1016))
+            .padding(14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween
+    ) {
+        // App Title
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Default.Explore, contentDescription = null, tint = Color(0xFF5856D6), modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Compass", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        }
+
+        // Live rotated Compass Dial Canvas
         Box(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .background(Color(0xFF07080B))
-                .padding(8.dp)
+                .size(220.dp)
+                .background(Color(0xFF161824).copy(alpha = 0.4f), CircleShape)
+                .border(1.dp, Color(0xFF5856D6).copy(alpha = 0.25f), CircleShape),
+            contentAlignment = Alignment.Center
         ) {
-            when {
-                browserUrl == "flux://search" -> {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text("FLUX SEARCH", color = Color(0xFF00FFCC), fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                        Text("The virtual portal of Flux networks.", color = Color.LightGray, fontSize = 10.sp)
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val centerPt = Offset(size.width / 2f, size.height / 2f)
+                val radius = size.width / 2f
 
-                        Spacer(modifier = Modifier.height(20.dp))
+                // Outer ticks representing degree increments
+                for (angle in 0..359 step 15) {
+                    val finalAngle = (angle - azimuthSlider - 90) * Math.PI / 180f
+                    val innerR = if (angle % 90 == 0) radius - 20.dp.toPx() else radius - 12.dp.toPx()
+                    val outerR = radius - 4.dp.toPx()
+                    drawLine(
+                        color = if (angle % 90 == 0) Color(0xFF5856D6) else Color.White.copy(alpha = 0.25f),
+                        start = Offset(
+                            (centerPt.x + innerR * Math.cos(finalAngle)).toFloat(),
+                            (centerPt.y + innerR * Math.sin(finalAngle)).toFloat()
+                        ),
+                        end = Offset(
+                            (centerPt.x + outerR * Math.cos(finalAngle)).toFloat(),
+                            (centerPt.y + outerR * Math.sin(finalAngle)).toFloat()
+                        ),
+                        strokeWidth = if (angle % 90 == 0) 2.5.dp.toPx() else 1.dp.toPx()
+                    )
+                }
 
-                        // Hot recommendation buttons
-                        Column(
-                            modifier = Modifier.padding(horizontal = 24.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text("Recommended interactive sites:", color = Color.Gray, fontSize = 9.sp)
-                            WebShortcutRow("NeuraNews Tech Hub") { viewModel.setBrowserUrl("flux://neuranews") }
-                            WebShortcutRow("Pineapple Gadget Outlet") { viewModel.setBrowserUrl("flux://pineapple") }
-                            WebShortcutRow("GeminiSocial Workspace") { viewModel.setBrowserUrl("flux://social") }
-                        }
-                    }
-                }
-                browserUrl == "flux://neuranews" -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        item {
-                            Text("NeuraNews Daily", color = Color(0xFF00FFCC), fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                            Divider(color = Color.Gray.copy(0.3f))
-                        }
-                        item {
-                            NewsArticleCard("ASTEROID CAPTURED", "Tech developers captured gold mine asteroid orbits 1,000 miles from central base.")
-                        }
-                        item {
-                            NewsArticleCard("ROBO ATHLETE CUP WIN", "Flux metallic humanoids win soccer league matches in standard 4-0 score highlights.")
-                        }
-                    }
-                }
-                browserUrl == "flux://pineapple" -> {
-                    Column(
-                        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Pineapple Store", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                            Row {
-                                Icon(Icons.Default.ShoppingCart, null, tint = Color(0xFF00FFCC), modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("$mockCartSize", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
+                // Draw central needle
+                val pointerAngle = (-90) * Math.PI / 180f // North always points top on phone face
+                val pointerNorth = Offset(
+                    (centerPt.x + (radius - 40.dp.toPx()) * Math.cos(pointerAngle)).toFloat(),
+                    (centerPt.y + (radius - 40.dp.toPx()) * Math.sin(pointerAngle)).toFloat()
+                )
+                val pointerSouth = Offset(
+                    (centerPt.x + (radius - 40.dp.toPx()) * Math.cos(pointerAngle + Math.PI)).toFloat(),
+                    (centerPt.y + (radius - 40.dp.toPx()) * Math.sin(pointerAngle + Math.PI)).toFloat()
+                )
 
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF161824)),
-                            border = BorderStroke(0.5.dp, Color.White.copy(0.1f))
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text("Pineapple Alpha Watch 2", color = Color(0xFF00FFCC), fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                Text("Quantum display specs with integrated battery tiles which never decay.", color = Color.LightGray, fontSize = 10.sp)
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Button(
-                                    onClick = { mockCartSize += 1 },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FFCC)),
-                                    shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text("Buy Mock Specs ($299)", color = Color.Black, fontSize = 10.sp)
-                                }
-                            }
-                        }
-                    }
-                }
-                browserUrl == "flux://social" -> {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        Text("GeminiSocial Hub", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF161824)),
-                            border = BorderStroke(0.5.dp, Color.White.copy(0.1f))
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(modifier = Modifier.size(24.dp).background(Color(0xFF00FFCC), CircleShape))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Lead Architect", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text("FluxOS operates so fluid, the smooth scale-up zoom loops are incredibly neat!", color = Color.LightGray, fontSize = 11.sp)
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    IconButton(
-                                        onClick = { socialLikes += 1 },
-                                        modifier = Modifier.size(28.dp)
-                                    ) {
-                                        Icon(Icons.Default.Star, null, tint = Color(0xFFFFD54F), modifier = Modifier.size(16.dp))
-                                    }
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("$socialLikes Likes", color = Color.White, fontSize = 10.sp)
-                                }
-                            }
-                        }
-                    }
-                }
-                else -> { // Search results
-                    val q = browserUrl.substringAfter("q=").replace("+", " ")
-                    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Flux Search Results: '$q'", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF161824))
-                        ) {
-                            Column(modifier = Modifier.padding(10.dp)) {
-                                Text("FluxOS Simulator Review", color = Color(0xFF00FFCC), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { viewModel.setBrowserUrl("flux://social") })
-                                Text("Learn how gestures override keys inside these stateful frames...", color = Color.LightGray, fontSize = 10.sp)
-                            }
-                        }
-                    }
-                }
+                drawLine(Color(0xFFFF2D55), centerPt, pointerNorth, strokeWidth = 4.dp.toPx())
+                drawLine(Color.Gray, centerPt, pointerSouth, strokeWidth = 4.dp.toPx())
+                drawCircle(Color.White, radius = 6.dp.toPx(), center = centerPt)
             }
         }
-    }
-}
 
-@Composable
-fun WebShortcutRow(label: String, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .background(Color.White.copy(0.04f), RoundedCornerShape(8.dp))
-            .border(0.5.dp, Color.White.copy(0.1f), RoundedCornerShape(8.dp))
-            .padding(10.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(label, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium)
-        Icon(imageVector = Icons.Default.Launch, contentDescription = null, tint = Color(0xFF00FFCC), modifier = Modifier.size(12.dp))
-    }
-}
+        // Digital telemetry
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                "${azimuthSlider.toInt()}° $directionString",
+                color = Color.White,
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Light,
+                letterSpacing = 1.sp
+            )
+            Text(
+                "LAT: 55° 45' 21\" N   |   LON: 37° 37' 04\" E",
+                color = Color.Gray,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
 
-@Composable
-fun NewsArticleCard(title: String, body: String) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF161824)),
-        border = BorderStroke(0.5.dp, Color.White.copy(0.1f))
-    ) {
-        Column(modifier = Modifier.padding(10.dp)) {
-            Text(title, color = Color(0xFFFF4081), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(body, color = Color.White, fontSize = 10.sp, lineHeight = 13.sp)
+        // Controls
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF161824)),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth().border(0.5.dp, Color.White.copy(0.06f), RoundedCornerShape(12.dp))
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Manual Heading Tuning", color = Color.White, fontSize = 11.sp)
+                    Text(
+                        if (isAutoRotating) "Auto Rotate On" else "Fine Adjust Active",
+                        color = Color(0xFF5856D6),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Slider(
+                    value = azimuthSlider,
+                    onValueChange = {
+                        azimuthSlider = it
+                        isAutoRotating = false
+                    },
+                    valueRange = 0f..359f,
+                    colors = SliderDefaults.colors(activeTrackColor = Color(0xFF5856D6), thumbColor = Color(0xFF5856D6))
+                )
+
+                Button(
+                    onClick = { isAutoRotating = !isAutoRotating },
+                    colors = ButtonDefaults.buttonColors(containerColor = if (isAutoRotating) Color(0xFF5856D6) else Color.White.copy(0.06f)),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        if (isAutoRotating) "Pause Auto Simulation" else "Resume Auto Simulation",
+                        color = Color.White,
+                        fontSize = 11.sp
+                    )
+                }
+            }
         }
     }
 }
@@ -2972,7 +3542,10 @@ fun PhoneAppScreen(viewModel: OSViewModel) {
     var activeTab by remember { mutableStateOf("dialer") } // "dialer" or "recents"
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(14.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(14.dp)
+            .scale(0.88f),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
@@ -3161,3 +3734,82 @@ fun MessagesAppScreen(viewModel: OSViewModel) {
         }
     }
 }
+
+@Composable
+fun ContextMenuPopup(viewModel: OSViewModel, app: AppId) {
+    var isReady by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(10) // small delay to trigger the spring entrance
+        isReady = true
+    }
+    
+    val popProgress by animateFloatAsState(
+        targetValue = if (isReady) 1f else 0.0f,
+        animationSpec = spring(dampingRatio = 0.65f, stiffness = 800f)
+    )
+
+    val offset by viewModel.contextMenuOffset.collectAsStateWithLifecycle()
+
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Column(
+            modifier = Modifier
+                .graphicsLayer {
+                    // Position menu slightly above or near the icon
+                    val menuWidthPx = 220.dp.toPx()
+                    val menuHeightPx = 140.dp.toPx()
+                    
+                    var targetX = offset.x
+                    var targetY = offset.y - menuHeightPx - 20f
+                    
+                    if (targetY < 0f) targetY = offset.y + 100f
+                    if (targetX + menuWidthPx > size.width) targetX = size.width - menuWidthPx - 20f
+                    
+                    translationX = targetX
+                    translationY = targetY
+                    
+                    scaleX = popProgress
+                    scaleY = popProgress
+                    alpha = popProgress.coerceIn(0f, 1f)
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+                }
+                .width(220.dp)
+                .background(Color(0xFF1E1E24).copy(alpha = 0.9f), RoundedCornerShape(20.dp))
+                .border(0.5.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                .padding(8.dp)
+        ) {
+            val appName = app.name.lowercase(java.util.Locale.US).replaceFirstChar { it.uppercase() }
+            Text(
+                "App Info", 
+                color = Color.White, 
+                fontSize = 14.sp, 
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { viewModel.closeContextMenu() }
+                    .padding(12.dp)
+            )
+            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.1f)))
+            Text(
+                "Share $appName", 
+                color = Color.White, 
+                fontSize = 14.sp, 
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { viewModel.closeContextMenu() }
+                    .padding(12.dp)
+            )
+            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.1f)))
+            Text(
+                "Uninstall", 
+                color = Color(0xFFFF453A), 
+                fontSize = 14.sp, 
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { viewModel.closeContextMenu() }
+                    .padding(12.dp)
+            )
+        }
+    }
+}
+
